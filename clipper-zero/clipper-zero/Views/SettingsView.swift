@@ -18,7 +18,7 @@ struct SettingsView: View {
 
             SnippetsSettingsTab()
                 .tabItem {
-                    Label("Snippets", systemImage: "text.snippet")
+                    Label("Snippets", systemImage: "note.text")
                 }
 
             AboutTab()
@@ -208,7 +208,7 @@ struct SnippetsSettingsTab: View {
 
                 if snippets.isEmpty {
                     ContentUnavailableView("No Snippets",
-                        systemImage: "text.snippet",
+                        systemImage: "note.text",
                         description: Text("Add snippets for quick access to frequently used text."))
                 }
             }

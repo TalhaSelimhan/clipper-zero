@@ -85,12 +85,12 @@ struct ClipboardPanel: View {
             return .handled
         }
         .onKeyPress(.leftArrow) {
-            if isSearchFocused { return .ignored }
+            if isSearchFocused && !searchText.isEmpty { return .ignored }
             activeSegment = .clips
             return .handled
         }
         .onKeyPress(.rightArrow) {
-            if isSearchFocused { return .ignored }
+            if isSearchFocused && !searchText.isEmpty { return .ignored }
             activeSegment = .snippets
             return .handled
         }
