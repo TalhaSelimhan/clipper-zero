@@ -20,6 +20,25 @@ final class PasteService {
         writeToPasteboard(clip: clip)
     }
 
+    func paste(snippet: SnippetItem) {
+        writeToPasteboard(text: snippet.value)
+        AppDelegate.shared.panelController.hidePanel()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.simulateCmdV()
+        }
+    }
+
+    func copyOnly(snippet: SnippetItem) {
+        writeToPasteboard(text: snippet.value)
+    }
+
+    private func writeToPasteboard(text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+    }
+
     private func writeToPasteboard(clip: ClipItem) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()

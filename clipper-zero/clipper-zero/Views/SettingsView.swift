@@ -16,12 +16,17 @@ struct SettingsView: View {
                     Label("Excluded Apps", systemImage: "nosign")
                 }
 
+            SnippetsSettingsTab()
+                .tabItem {
+                    Label("Snippets", systemImage: "text.snippet")
+                }
+
             AboutTab()
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
         }
-        .frame(width: 450, height: 350)
+        .frame(width: 450, height: 400)
     }
 }
 
@@ -174,6 +179,78 @@ struct ExcludedAppsTab: View {
             return nil
         }
         return NSWorkspace.shared.icon(forFile: url.path(percentEncoded: false))
+    }
+}
+
+// MARK: - Snippets
+
+struct SnippetsSettingsTab: View {
+    @Query(sort: \SnippetItem.sortOrder) private var snippets: [SnippetItem]
+    @Environment(\.modelContext) private var modelContext
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            List {
+                ForEach(snippets) { snippet in
+                    SnippetSettingsRow(snippet: snippet) {
+                        modelContext.delete(snippet)
+                        try? modelContext.save()
+                    }
+                }
+                .onMove { indices, newOffset in
+                    var ordered = snippets.map { $0 }
+                    ordered.move(fromOffsets: indices, toOffset: newOffset)
+                    for (index, snippet) in ordered.enumerated() {
+                        snippet.sortOrder = index
+                    }
+                    try? modelContext.save()
+                }
+
+                if snippets.isEmpty {
+                    ContentUnavailableView("No Snippets",
+                        systemImage: "text.snippet",
+                        description: Text("Add snippets for quick access to frequently used text."))
+                }
+            }
+
+            HStack {
+                Button {
+                    let maxOrder = snippets.map(\.sortOrder).max() ?? -1
+                    let snippet = SnippetItem(name: "New Snippet", value: "", sortOrder: maxOrder + 1)
+                    modelContext.insert(snippet)
+                    try? modelContext.save()
+                } label: {
+                    Label("Add Snippet", systemImage: "plus")
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.bottom)
+        }
+    }
+}
+
+struct SnippetSettingsRow: View {
+    @Bindable var snippet: SnippetItem
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                TextField("Name", text: $snippet.name)
+                    .font(.body)
+                TextField("Value", text: $snippet.value)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button(action: onDelete) {
+                Image(systemName: "minus.circle.fill")
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.plain)
+        }
     }
 }
 

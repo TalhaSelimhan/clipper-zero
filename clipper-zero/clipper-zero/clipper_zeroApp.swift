@@ -9,7 +9,7 @@ struct ClipperZeroApp: App {
 
     init() {
         do {
-            let schema = Schema([ClipItem.self, ClipCollection.self, ExcludedApp.self])
+            let schema = Schema([ClipItem.self, ClipCollection.self, ExcludedApp.self, SnippetItem.self])
             let config = ModelConfiguration("ClipperZero", schema: schema)
             modelContainer = try ModelContainer(for: schema, configurations: [config])
         } catch {
