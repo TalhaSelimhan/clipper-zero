@@ -50,6 +50,7 @@ final class PanelController {
             panel.animator().alphaValue = 0
         }, completionHandler: { [weak self] in
             self?.panel?.orderOut(nil)
+            self?.panel = nil
         })
     }
 
