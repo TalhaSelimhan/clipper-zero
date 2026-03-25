@@ -1,0 +1,189 @@
+import AppKit
+import SwiftData
+import Foundation
+import UniformTypeIdentifiers
+
+final class ClipboardMonitor {
+    private let modelContainer: ModelContainer
+    private var timer: Timer?
+    private var lastChangeCount: Int = 0
+    private lazy var queryContext: ModelContext = ModelContext(modelContainer)
+
+    init(modelContainer: ModelContainer) {
+        self.modelContainer = modelContainer
+        self.lastChangeCount = NSPasteboard.general.changeCount
+    }
+
+    func start() {
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.checkPasteboard()
+        }
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func checkPasteboard() {
+        let pasteboard = NSPasteboard.general
+        let currentChangeCount = pasteboard.changeCount
+
+        guard currentChangeCount != lastChangeCount else { return }
+        lastChangeCount = currentChangeCount
+
+        // Check if the frontmost app is excluded
+        if let frontApp = NSWorkspace.shared.frontmostApplication,
+           let bundleId = frontApp.bundleIdentifier {
+            if isAppExcluded(bundleId: bundleId) { return }
+        }
+
+        self.captureClip(from: pasteboard)
+    }
+
+    private func isAppExcluded(bundleId: String) -> Bool {
+        let predicate = #Predicate<ExcludedApp> { $0.bundleIdentifier == bundleId }
+        let descriptor = FetchDescriptor<ExcludedApp>(predicate: predicate)
+        let results = (try? queryContext.fetch(descriptor)) ?? []
+        return !results.isEmpty
+    }
+
+    @MainActor
+    private func captureClip(from pasteboard: NSPasteboard) {
+        let context = ModelContext(modelContainer)
+
+        let (contentType, content, plainText, previewData) = extractContent(from: pasteboard)
+        guard let content else { return }
+
+        // Skip if duplicate of most recent clip
+        if let plainText, isDuplicate(plainText: plainText, in: context) { return }
+
+        let frontApp = NSWorkspace.shared.frontmostApplication
+        let clip = ClipItem(
+            content: content,
+            contentType: contentType,
+            plainText: plainText,
+            sourceAppBundle: frontApp?.bundleIdentifier,
+            sourceAppName: frontApp?.localizedName
+        )
+
+        if contentType == .image, let imgData = content as Data? {
+            clip.previewData = generateThumbnail(from: imgData)
+        } else {
+            clip.previewData = previewData
+        }
+
+        context.insert(clip)
+        try? context.save()
+
+        enforceRetentionPolicy(in: context)
+
+        if UserDefaults.standard.bool(forKey: "playSoundOnCopy") {
+            NSSound(named: .pop)?.play()
+        }
+    }
+
+    private func isDuplicate(plainText: String, in context: ModelContext) -> Bool {
+        var descriptor = FetchDescriptor<ClipItem>(
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        guard let latest = try? context.fetch(descriptor).first else { return false }
+        return latest.plainText == plainText
+    }
+
+    private func extractContent(from pasteboard: NSPasteboard) -> (ClipContentType, Data?, String?, Data?) {
+        // Check for color
+        if let color = NSColor(from: pasteboard) {
+            let colorDesc = color.description
+            return (.color, colorDesc.data(using: .utf8), colorDesc, nil)
+        }
+
+        // Check for image
+        if let imageType = pasteboard.availableType(from: [.tiff, .png]) {
+            if let imageData = pasteboard.data(forType: imageType) {
+                return (.image, imageData, nil, nil)
+            }
+        }
+
+        // Check for file URLs
+        if let fileURLs = pasteboard.readObjects(forClasses: [NSURL.self], options: [
+            .urlReadingFileURLsOnly: true
+        ]) as? [URL], let firstURL = fileURLs.first {
+            let bookmarkData = try? firstURL.bookmarkData(
+                options: .withSecurityScope,
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            )
+            return (.file, bookmarkData ?? Data(), firstURL.lastPathComponent, nil)
+        }
+
+        // Check for URL (link)
+        if let urlString = pasteboard.string(forType: .URL) ?? pasteboard.string(forType: .string),
+           let url = URL(string: urlString), url.scheme != nil,
+           urlString.hasPrefix("http://") || urlString.hasPrefix("https://") {
+            let data = urlString.data(using: .utf8)
+            return (.link, data, urlString, nil)
+        }
+
+        // Check for rich text
+        if let rtfData = pasteboard.data(forType: .rtf) {
+            let plainText = pasteboard.string(forType: .string)
+            return (.richText, rtfData, plainText, nil)
+        }
+
+        // Plain text
+        if let text = pasteboard.string(forType: .string) {
+            return (.text, text.data(using: .utf8), text, nil)
+        }
+
+        return (.text, nil, nil, nil)
+    }
+
+    private func generateThumbnail(from imageData: Data) -> Data? {
+        guard let image = NSImage(data: imageData) else { return nil }
+        let maxDimension: CGFloat = 64
+        let size = image.size
+        let scale = min(maxDimension / size.width, maxDimension / size.height, 1.0)
+        let newSize = NSSize(width: size.width * scale, height: size.height * scale)
+
+        let thumbnail = NSImage(size: newSize, flipped: false) { rect in
+            image.draw(in: rect)
+            return true
+        }
+        return thumbnail.tiffRepresentation
+    }
+
+    private func enforceRetentionPolicy(in context: ModelContext) {
+        let limit = UserDefaults.standard.integer(forKey: "historyLimit")
+        let effectiveLimit = limit > 0 ? limit : 1000
+
+        let countDescriptor = FetchDescriptor<ClipItem>()
+        guard let totalCount = try? context.fetchCount(countDescriptor),
+              totalCount > effectiveLimit else { return }
+
+        let excess = totalCount - effectiveLimit
+
+        // Fetch oldest unpinned items not in any collection
+        let predicate = #Predicate<ClipItem> { item in
+            !item.isPinned
+        }
+        var descriptor = FetchDescriptor<ClipItem>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\.createdAt, order: .forward)]
+        )
+        descriptor.fetchLimit = excess
+
+        guard let oldItems = try? context.fetch(descriptor) else { return }
+        for item in oldItems {
+            if item.collections?.isEmpty ?? true {
+                context.delete(item)
+            }
+        }
+        try? context.save()
+    }
+}
+
+private extension NSSound.Name {
+    static let pop = NSSound.Name("Pop")
+}

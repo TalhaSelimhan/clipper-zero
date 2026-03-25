@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSAccessibilityUsageDescription</key>
+	<string>Clipper Zero needs Accessibility to register hotkeys and paste clips
+   into other apps.</string>
+</dict>
+</plist>
