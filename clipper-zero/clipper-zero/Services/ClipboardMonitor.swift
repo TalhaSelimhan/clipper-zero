@@ -7,7 +7,6 @@ final class ClipboardMonitor {
     private let modelContainer: ModelContainer
     private var timer: Timer?
     private var lastChangeCount: Int = 0
-    private lazy var queryContext: ModelContext = ModelContext(modelContainer)
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
@@ -42,15 +41,16 @@ final class ClipboardMonitor {
     }
 
     private func isAppExcluded(bundleId: String) -> Bool {
+        let context = modelContainer.mainContext
         let predicate = #Predicate<ExcludedApp> { $0.bundleIdentifier == bundleId }
         let descriptor = FetchDescriptor<ExcludedApp>(predicate: predicate)
-        let results = (try? queryContext.fetch(descriptor)) ?? []
+        let results = (try? context.fetch(descriptor)) ?? []
         return !results.isEmpty
     }
 
     @MainActor
     private func captureClip(from pasteboard: NSPasteboard) {
-        let context = ModelContext(modelContainer)
+        let context = modelContainer.mainContext
 
         let (contentType, content, plainText, previewData) = extractContent(from: pasteboard)
         guard let content else { return }
