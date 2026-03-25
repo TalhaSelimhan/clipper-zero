@@ -54,7 +54,7 @@ struct ClipRow: View {
                 }
             default:
                 Text(clip.plainText ?? "No preview")
-                    .lineLimit(isExpanded ? nil : 1)
+                    .lineLimit(1)
                     .truncationMode(.tail)
                     .font(.body)
             }
