@@ -4,10 +4,17 @@ import SwiftData
 
 final class PanelController {
     private var panel: NSPanel?
+    private var clickOutsideMonitor: Any?
     private let modelContainer: ModelContainer
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
+    }
+
+    deinit {
+        if let monitor = clickOutsideMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
     }
 
     var isVisible: Bool {
@@ -39,9 +46,21 @@ final class PanelController {
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             panel.animator().alphaValue = 1
         }
+
+        clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let self, let panel = self.panel, panel.isVisible else { return }
+            if !panel.frame.contains(NSEvent.mouseLocation) {
+                self.hidePanel()
+            }
+        }
     }
 
     func hidePanel() {
+        if let monitor = clickOutsideMonitor {
+            NSEvent.removeMonitor(monitor)
+            clickOutsideMonitor = nil
+        }
+
         guard let panel, panel.isVisible else { return }
 
         NSAnimationContext.runAnimationGroup({ context in

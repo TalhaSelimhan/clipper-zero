@@ -8,6 +8,7 @@ struct ClipboardPanel: View {
     @State private var searchText = ""
     @State private var selectedIndex = 0
     @State private var expandedPreview = false
+    @FocusState private var isSearchFocused: Bool
 
     @Query(sort: \ClipItem.createdAt, order: .reverse)
     private var allClips: [ClipItem]
@@ -80,6 +81,9 @@ struct ClipboardPanel: View {
             selectedIndex = 0
             expandedPreview = false
         }
+        .onAppear {
+            isSearchFocused = true
+        }
     }
 
     // MARK: - Search Bar
@@ -93,6 +97,7 @@ struct ClipboardPanel: View {
             TextField("Search clips...", text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.title3)
+                .focused($isSearchFocused)
 
             if !searchText.isEmpty {
                 Button {
