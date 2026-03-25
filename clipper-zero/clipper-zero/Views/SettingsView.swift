@@ -1,6 +1,6 @@
-import ServiceManagement
-import SwiftData
 import SwiftUI
+import SwiftData
+import ServiceManagement
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
@@ -57,7 +57,7 @@ struct GeneralSettingsTab: View {
                 HStack {
                     Text("History limit")
                     Spacer()
-                    Stepper("\(historyLimit)", value: $historyLimit, in: 100 ... 10000, step: 100)
+                    Stepper("\(historyLimit)", value: $historyLimit, in: 100...10000, step: 100)
                 }
             }
 
@@ -114,8 +114,8 @@ struct ExcludedAppsTab: View {
 
                 if excludedApps.isEmpty {
                     ContentUnavailableView("No Excluded Apps",
-                                           systemImage: "nosign",
-                                           description: Text("Apps added here will not have their clipboard content recorded."))
+                        systemImage: "nosign",
+                        description: Text("Apps added here will not have their clipboard content recorded."))
                 }
             }
 
@@ -130,7 +130,7 @@ struct ExcludedAppsTab: View {
                     allowedContentTypes: [.application],
                     allowsMultipleSelection: false
                 ) { result in
-                    if case let .success(urls) = result, let url = urls.first {
+                    if case .success(let urls) = result, let url = urls.first {
                         addExcludedApp(from: url)
                     }
                 }

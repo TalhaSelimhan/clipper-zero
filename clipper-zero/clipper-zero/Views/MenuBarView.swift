@@ -46,6 +46,9 @@ struct MenuBarView: View {
                 Label("Settings", systemImage: "gear")
             }
             .buttonStyle(.plain)
+            .simultaneousGesture(TapGesture().onEnded {
+                NSApp.activate(ignoringOtherApps: true)
+            })
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

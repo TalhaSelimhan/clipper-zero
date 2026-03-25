@@ -5,6 +5,7 @@ import SwiftData
 final class PanelController {
     private var panel: NSPanel?
     private var clickOutsideMonitor: Any?
+    private var appActivationObserver: NSObjectProtocol?
     private let modelContainer: ModelContainer
 
     init(modelContainer: ModelContainer) {
@@ -14,6 +15,9 @@ final class PanelController {
     deinit {
         if let monitor = clickOutsideMonitor {
             NSEvent.removeMonitor(monitor)
+        }
+        if let observer = appActivationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
         }
     }
 
@@ -53,12 +57,24 @@ final class PanelController {
                 self.hidePanel()
             }
         }
+
+        appActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.hidePanel()
+        }
     }
 
     func hidePanel() {
         if let monitor = clickOutsideMonitor {
             NSEvent.removeMonitor(monitor)
             clickOutsideMonitor = nil
+        }
+        if let observer = appActivationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            appActivationObserver = nil
         }
 
         guard let panel, panel.isVisible else { return }
