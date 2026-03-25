@@ -47,6 +47,7 @@ struct MenuBarView: View {
             }
             .buttonStyle(.plain)
             .simultaneousGesture(TapGesture().onEnded {
+                AppDelegate.shared.panelController.hidePanel()
                 NSApp.activate(ignoringOtherApps: true)
             })
         }
