@@ -55,8 +55,12 @@ final class ClipboardMonitor {
         let (contentType, content, plainText, previewData) = extractContent(from: pasteboard)
         guard let content else { return }
 
-        // Skip if duplicate of most recent clip
-        if let plainText, isDuplicate(plainText: plainText, in: context) { return }
+        // If a clip with the same text already exists, move it to the top instead of duplicating
+        if let plainText, let existing = findExistingClip(plainText: plainText, in: context) {
+            existing.createdAt = .now
+            try? context.save()
+            return
+        }
 
         let frontApp = NSWorkspace.shared.frontmostApplication
         let clip = ClipItem(
@@ -83,13 +87,11 @@ final class ClipboardMonitor {
         }
     }
 
-    private func isDuplicate(plainText: String, in context: ModelContext) -> Bool {
-        var descriptor = FetchDescriptor<ClipItem>(
-            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
-        )
+    private func findExistingClip(plainText: String, in context: ModelContext) -> ClipItem? {
+        let predicate = #Predicate<ClipItem> { $0.plainText == plainText }
+        var descriptor = FetchDescriptor<ClipItem>(predicate: predicate)
         descriptor.fetchLimit = 1
-        guard let latest = try? context.fetch(descriptor).first else { return false }
-        return latest.plainText == plainText
+        return try? context.fetch(descriptor).first
     }
 
     private func extractContent(from pasteboard: NSPasteboard) -> (ClipContentType, Data?, String?, Data?) {
