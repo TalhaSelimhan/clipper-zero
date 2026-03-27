@@ -9,11 +9,7 @@ final class PasteService {
 
     func paste(clip: ClipItem) {
         writeToPasteboard(clip: clip)
-        AppDelegate.shared.panelController.hidePanel()
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            self.simulateCmdV()
-        }
+        hideAndPaste()
     }
 
     func copyOnly(clip: ClipItem) {
@@ -22,15 +18,32 @@ final class PasteService {
 
     func paste(snippet: SnippetItem) {
         writeToPasteboard(text: snippet.value)
-        AppDelegate.shared.panelController.hidePanel()
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            self.simulateCmdV()
-        }
+        hideAndPaste()
     }
 
     func copyOnly(snippet: SnippetItem) {
         writeToPasteboard(text: snippet.value)
+    }
+
+    func paste(_ result: SearchResult) {
+        switch result {
+        case .clip(let clip): paste(clip: clip)
+        case .snippet(let snippet): paste(snippet: snippet)
+        }
+    }
+
+    func copyOnly(_ result: SearchResult) {
+        switch result {
+        case .clip(let clip): copyOnly(clip: clip)
+        case .snippet(let snippet): copyOnly(snippet: snippet)
+        }
+    }
+
+    private func hideAndPaste() {
+        AppDelegate.shared.panelController.hidePanel()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.simulateCmdV()
+        }
     }
 
     private func writeToPasteboard(text: String) {

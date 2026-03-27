@@ -196,15 +196,3 @@ struct MenuBarClipRow: View {
     }
 }
 
-extension ClipContentType {
-    var iconName: String {
-        switch self {
-        case .text: return "doc.text"
-        case .richText: return "doc.richtext"
-        case .image: return "photo"
-        case .file: return "doc"
-        case .color: return "paintpalette"
-        case .link: return "link"
-        }
-    }
-}

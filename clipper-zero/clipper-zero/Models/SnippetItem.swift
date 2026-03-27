@@ -17,3 +17,7 @@ final class SnippetItem {
         self.sortOrder = sortOrder
     }
 }
+
+extension Sequence where Element == SnippetItem {
+    var maxSortOrder: Int { map(\.sortOrder).max() ?? -1 }
+}

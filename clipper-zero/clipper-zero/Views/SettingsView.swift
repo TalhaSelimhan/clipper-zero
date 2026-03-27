@@ -143,12 +143,12 @@ struct ExcludedAppsTab: View {
                 Spacer()
 
                 Button("Add 1Password") {
-                    addPredefined(bundle: "com.1password.1password", name: "1Password")
+                    insertExcludedApp(bundleIdentifier: "com.1password.1password", name: "1Password")
                 }
                 .disabled(excludedApps.contains { $0.bundleIdentifier == "com.1password.1password" })
 
                 Button("Add Keychain") {
-                    addPredefined(bundle: "com.apple.keychainaccess", name: "Keychain Access")
+                    insertExcludedApp(bundleIdentifier: "com.apple.keychainaccess", name: "Keychain Access")
                 }
                 .disabled(excludedApps.contains { $0.bundleIdentifier == "com.apple.keychainaccess" })
             }
@@ -162,14 +162,11 @@ struct ExcludedAppsTab: View {
               let bundleId = bundle.bundleIdentifier else { return }
         let name = bundle.infoDictionary?["CFBundleName"] as? String
             ?? url.deletingPathExtension().lastPathComponent
-
-        let app = ExcludedApp(bundleIdentifier: bundleId, appName: name)
-        modelContext.insert(app)
-        try? modelContext.save()
+        insertExcludedApp(bundleIdentifier: bundleId, name: name)
     }
 
-    private func addPredefined(bundle: String, name: String) {
-        let app = ExcludedApp(bundleIdentifier: bundle, appName: name)
+    private func insertExcludedApp(bundleIdentifier: String, name: String) {
+        let app = ExcludedApp(bundleIdentifier: bundleIdentifier, appName: name)
         modelContext.insert(app)
         try? modelContext.save()
     }
@@ -217,8 +214,7 @@ struct SnippetsSettingsTab: View {
 
             HStack {
                 Button {
-                    let maxOrder = snippets.map(\.sortOrder).max() ?? -1
-                    let snippet = SnippetItem(name: "New Snippet", value: "", sortOrder: maxOrder + 1)
+                    let snippet = SnippetItem(name: "New Snippet", value: "", sortOrder: snippets.maxSortOrder + 1)
                     modelContext.insert(snippet)
                     try? modelContext.save()
                 } label: {

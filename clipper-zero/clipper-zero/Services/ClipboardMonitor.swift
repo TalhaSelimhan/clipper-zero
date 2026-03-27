@@ -52,7 +52,7 @@ final class ClipboardMonitor {
     private func captureClip(from pasteboard: NSPasteboard) {
         let context = modelContainer.mainContext
 
-        let (contentType, content, plainText, previewData) = extractContent(from: pasteboard)
+        let (contentType, content, plainText) = extractContent(from: pasteboard)
         guard let content else { return }
 
         // If a clip with the same text already exists, move it to the top instead of duplicating
@@ -71,10 +71,8 @@ final class ClipboardMonitor {
             sourceAppName: frontApp?.localizedName
         )
 
-        if contentType == .image, let imgData = content as Data? {
-            clip.previewData = generateThumbnail(from: imgData)
-        } else {
-            clip.previewData = previewData
+        if contentType == .image {
+            clip.previewData = generateThumbnail(from: content)
         }
 
         context.insert(clip)
@@ -83,7 +81,7 @@ final class ClipboardMonitor {
         enforceRetentionPolicy(in: context)
 
         if UserDefaults.standard.bool(forKey: "playSoundOnCopy") {
-            NSSound(named: .pop)?.play()
+            NSSound(named: "Pop")?.play()
         }
     }
 
@@ -94,17 +92,17 @@ final class ClipboardMonitor {
         return try? context.fetch(descriptor).first
     }
 
-    private func extractContent(from pasteboard: NSPasteboard) -> (ClipContentType, Data?, String?, Data?) {
+    private func extractContent(from pasteboard: NSPasteboard) -> (ClipContentType, Data?, String?) {
         // Check for color
         if let color = NSColor(from: pasteboard) {
             let colorDesc = color.description
-            return (.color, colorDesc.data(using: .utf8), colorDesc, nil)
+            return (.color, colorDesc.data(using: .utf8), colorDesc)
         }
 
         // Check for image
         if let imageType = pasteboard.availableType(from: [.tiff, .png]) {
             if let imageData = pasteboard.data(forType: imageType) {
-                return (.image, imageData, nil, nil)
+                return (.image, imageData, nil)
             }
         }
 
@@ -117,7 +115,7 @@ final class ClipboardMonitor {
                 includingResourceValuesForKeys: nil,
                 relativeTo: nil
             )
-            return (.file, bookmarkData ?? Data(), firstURL.lastPathComponent, nil)
+            return (.file, bookmarkData ?? Data(), firstURL.lastPathComponent)
         }
 
         // Check for URL (link)
@@ -125,21 +123,21 @@ final class ClipboardMonitor {
            let url = URL(string: urlString), url.scheme != nil,
            urlString.hasPrefix("http://") || urlString.hasPrefix("https://") {
             let data = urlString.data(using: .utf8)
-            return (.link, data, urlString, nil)
+            return (.link, data, urlString)
         }
 
         // Check for rich text
         if let rtfData = pasteboard.data(forType: .rtf) {
             let plainText = pasteboard.string(forType: .string)
-            return (.richText, rtfData, plainText, nil)
+            return (.richText, rtfData, plainText)
         }
 
         // Plain text
         if let text = pasteboard.string(forType: .string) {
-            return (.text, text.data(using: .utf8), text, nil)
+            return (.text, text.data(using: .utf8), text)
         }
 
-        return (.text, nil, nil, nil)
+        return (.text, nil, nil)
     }
 
     private func generateThumbnail(from imageData: Data) -> Data? {
@@ -168,7 +166,7 @@ final class ClipboardMonitor {
 
         // Fetch oldest unpinned items not in any collection
         let predicate = #Predicate<ClipItem> { item in
-            !item.isPinned
+            !item.isPinned && (item.collections?.isEmpty ?? true)
         }
         var descriptor = FetchDescriptor<ClipItem>(
             predicate: predicate,
@@ -178,14 +176,8 @@ final class ClipboardMonitor {
 
         guard let oldItems = try? context.fetch(descriptor) else { return }
         for item in oldItems {
-            if item.collections?.isEmpty ?? true {
-                context.delete(item)
-            }
+            context.delete(item)
         }
         try? context.save()
     }
-}
-
-private extension NSSound.Name {
-    static let pop = NSSound.Name("Pop")
 }

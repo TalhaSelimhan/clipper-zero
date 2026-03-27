@@ -96,10 +96,10 @@ final class PanelController {
         .modelContainer(modelContainer)
 
         let hostingView = NSHostingView(rootView: contentView)
-        hostingView.frame = NSRect(x: 0, y: 0, width: 680, height: 480)
+        hostingView.frame = NSRect(x: 0, y: 0, width: PanelMetrics.width, height: PanelMetrics.height)
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 680, height: 480),
+            contentRect: NSRect(x: 0, y: 0, width: PanelMetrics.width, height: PanelMetrics.height),
             styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
             backing: .buffered,
             defer: false
