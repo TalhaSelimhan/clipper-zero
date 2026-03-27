@@ -200,8 +200,8 @@ struct SnippetsSettingsTab: View {
                         ForEach(snippets) { snippet in
                             SnippetSettingsRow(
                                 snippet: snippet,
-                                canMoveUp: snippet.sortOrder > (snippets.first?.sortOrder ?? 0),
-                                canMoveDown: snippet.sortOrder < (snippets.last?.sortOrder ?? 0),
+                                canMoveUp: snippet.id != snippets.first?.id,
+                                canMoveDown: snippet.id != snippets.last?.id,
                                 onMoveUp: { moveSnippet(snippet, direction: -1) },
                                 onMoveDown: { moveSnippet(snippet, direction: 1) },
                                 onDelete: {
@@ -233,11 +233,13 @@ struct SnippetsSettingsTab: View {
     }
 
     private func moveSnippet(_ snippet: SnippetItem, direction: Int) {
-        let currentOrder = snippet.sortOrder
-        let targetOrder = currentOrder + direction
-        guard let target = snippets.first(where: { $0.sortOrder == targetOrder }) else { return }
-        target.sortOrder = currentOrder
-        snippet.sortOrder = targetOrder
+        guard let idx = snippets.firstIndex(where: { $0.id == snippet.id }) else { return }
+        let neighborIdx = idx + direction
+        guard snippets.indices.contains(neighborIdx) else { return }
+        let neighbor = snippets[neighborIdx]
+        let tmp = snippet.sortOrder
+        snippet.sortOrder = neighbor.sortOrder
+        neighbor.sortOrder = tmp
         try? modelContext.save()
     }
 }
