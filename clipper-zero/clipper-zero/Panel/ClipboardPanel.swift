@@ -1,12 +1,45 @@
 import SwiftUI
 import SwiftData
 
-enum PanelSegment: String, CaseIterable {
-    case clips = "Clips"
-    case snippets = "Snippets"
+// MARK: - Panel Size Constants
+
+enum PanelMetrics {
+    static let width: CGFloat = 680
+    static let height: CGFloat = 480
 }
 
 struct ClipboardPanel: View {
+    // MARK: - Nested Types
+
+    enum PanelSegment: String, CaseIterable {
+        case clips = "Clips"
+        case snippets = "Snippets"
+    }
+
+    private struct ScrollList<Content: View>: View {
+        let selectedIndex: Int
+        @ViewBuilder let content: () -> Content
+
+        var body: some View {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 2) {
+                        content()
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                }
+                .onChange(of: selectedIndex) { _, newValue in
+                    withAnimation(.easeOut(duration: 0.1)) {
+                        proxy.scrollTo(newValue, anchor: .center)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Properties
+
     let onDismiss: () -> Void
 
     @Environment(\.modelContext) private var modelContext
@@ -61,7 +94,7 @@ struct ClipboardPanel: View {
             Divider()
             footerBar
         }
-        .frame(width: 680, height: 480)
+        .frame(width: PanelMetrics.width, height: PanelMetrics.height)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
@@ -207,36 +240,25 @@ struct ClipboardPanel: View {
     // MARK: - Clip List
 
     private func clipList(_ clips: [ClipItem]) -> some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 2) {
-                    ForEach(Array(clips.enumerated()), id: \.element.id) { index, clip in
-                        ClipRow(
-                            clip: clip,
-                            isSelected: index == selectedIndex,
-                            isExpanded: index == selectedIndex && expandedPreview
-                        )
-                        .id(index)
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityAction {
-                            selectedIndex = index
-                            pasteSelected()
-                        }
-                        .onTapGesture(count: 2) {
-                            selectedIndex = index
-                            pasteSelected()
-                        }
-                        .onTapGesture {
-                            selectedIndex = index
-                        }
-                    }
+        ScrollList(selectedIndex: selectedIndex) {
+            ForEach(Array(clips.enumerated()), id: \.element.id) { index, clip in
+                ClipRow(
+                    clip: clip,
+                    isSelected: index == selectedIndex,
+                    isExpanded: index == selectedIndex && expandedPreview
+                )
+                .id(index)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction {
+                    selectedIndex = index
+                    pasteSelected()
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-            }
-            .onChange(of: selectedIndex) { _, newValue in
-                withAnimation(.easeOut(duration: 0.1)) {
-                    proxy.scrollTo(newValue, anchor: .center)
+                .onTapGesture(count: 2) {
+                    selectedIndex = index
+                    pasteSelected()
+                }
+                .onTapGesture {
+                    selectedIndex = index
                 }
             }
         }
@@ -245,39 +267,28 @@ struct ClipboardPanel: View {
     // MARK: - Snippet List
 
     private func snippetList(_ snippets: [SnippetItem]) -> some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 2) {
-                    if isAddingSnippet {
-                        inlineAddForm
-                    }
-
-                    ForEach(Array(snippets.enumerated()), id: \.element.id) { index, snippet in
-                        SnippetRow(
-                            snippet: snippet,
-                            isSelected: index == selectedIndex
-                        )
-                        .id(index)
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityAction {
-                            selectedIndex = index
-                            pasteSelected()
-                        }
-                        .onTapGesture(count: 2) {
-                            selectedIndex = index
-                            pasteSelected()
-                        }
-                        .onTapGesture {
-                            selectedIndex = index
-                        }
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+        ScrollList(selectedIndex: selectedIndex) {
+            if isAddingSnippet {
+                inlineAddForm
             }
-            .onChange(of: selectedIndex) { _, newValue in
-                withAnimation(.easeOut(duration: 0.1)) {
-                    proxy.scrollTo(newValue, anchor: .center)
+
+            ForEach(Array(snippets.enumerated()), id: \.element.id) { index, snippet in
+                SnippetRow(
+                    snippet: snippet,
+                    isSelected: index == selectedIndex
+                )
+                .id(index)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction {
+                    selectedIndex = index
+                    pasteSelected()
+                }
+                .onTapGesture(count: 2) {
+                    selectedIndex = index
+                    pasteSelected()
+                }
+                .onTapGesture {
+                    selectedIndex = index
                 }
             }
         }
@@ -287,46 +298,35 @@ struct ClipboardPanel: View {
 
     private var unifiedSearchList: some View {
         let results = searchResults
-        return ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 2) {
-                    ForEach(Array(results.enumerated()), id: \.element.id) { index, result in
-                        Group {
-                            switch result {
-                            case .clip(let clip):
-                                ClipRow(
-                                    clip: clip,
-                                    isSelected: index == selectedIndex,
-                                    isExpanded: index == selectedIndex && expandedPreview
-                                )
-                            case .snippet(let snippet):
-                                SnippetRow(
-                                    snippet: snippet,
-                                    isSelected: index == selectedIndex
-                                )
-                            }
-                        }
-                        .id(index)
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityAction {
-                            selectedIndex = index
-                            pasteSelected()
-                        }
-                        .onTapGesture(count: 2) {
-                            selectedIndex = index
-                            pasteSelected()
-                        }
-                        .onTapGesture {
-                            selectedIndex = index
-                        }
+        return ScrollList(selectedIndex: selectedIndex) {
+            ForEach(Array(results.enumerated()), id: \.element.id) { index, result in
+                Group {
+                    switch result {
+                    case .clip(let clip):
+                        ClipRow(
+                            clip: clip,
+                            isSelected: index == selectedIndex,
+                            isExpanded: index == selectedIndex && expandedPreview
+                        )
+                    case .snippet(let snippet):
+                        SnippetRow(
+                            snippet: snippet,
+                            isSelected: index == selectedIndex
+                        )
                     }
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-            }
-            .onChange(of: selectedIndex) { _, newValue in
-                withAnimation(.easeOut(duration: 0.1)) {
-                    proxy.scrollTo(newValue, anchor: .center)
+                .id(index)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction {
+                    selectedIndex = index
+                    pasteSelected()
+                }
+                .onTapGesture(count: 2) {
+                    selectedIndex = index
+                    pasteSelected()
+                }
+                .onTapGesture {
+                    selectedIndex = index
                 }
             }
         }
@@ -377,12 +377,12 @@ struct ClipboardPanel: View {
 
     private var footerCountText: String {
         if !searchText.isEmpty {
-            return "\(searchResults.count) results"
+            return "\(currentItemCount) results"
         }
         if activeSegment == .clips {
-            return "\(filteredClips.count) clips"
+            return "\(currentItemCount) clips"
         }
-        return "\(filteredSnippets.count) snippets"
+        return "\(currentItemCount) snippets"
     }
 
     private func shortcutHint(_ key: String, _ label: String) -> some View {
@@ -425,22 +425,12 @@ struct ClipboardPanel: View {
 
     private func pasteSelected() {
         guard let item = selectedItem else { return }
-        switch item {
-        case .clip(let clip):
-            PasteService.shared.paste(clip: clip)
-        case .snippet(let snippet):
-            PasteService.shared.paste(snippet: snippet)
-        }
+        PasteService.shared.paste(item)
     }
 
     private func copySelected() {
         guard let item = selectedItem else { return }
-        switch item {
-        case .clip(let clip):
-            PasteService.shared.copyOnly(clip: clip)
-        case .snippet(let snippet):
-            PasteService.shared.copyOnly(snippet: snippet)
-        }
+        PasteService.shared.copyOnly(item)
     }
 
     private func togglePin() {
@@ -451,12 +441,7 @@ struct ClipboardPanel: View {
 
     private func deleteSelected() {
         guard let item = selectedItem else { return }
-        switch item {
-        case .clip(let clip):
-            modelContext.delete(clip)
-        case .snippet(let snippet):
-            modelContext.delete(snippet)
-        }
+        item.delete(from: modelContext)
         try? modelContext.save()
         if selectedIndex >= currentItemCount {
             selectedIndex = max(0, currentItemCount - 1)
@@ -470,8 +455,7 @@ struct ClipboardPanel: View {
         let trimmedValue = newSnippetValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty, !trimmedValue.isEmpty else { return }
 
-        let maxOrder = allSnippets.map(\.sortOrder).max() ?? -1
-        let snippet = SnippetItem(name: trimmedName, value: trimmedValue, sortOrder: maxOrder + 1)
+        let snippet = SnippetItem(name: trimmedName, value: trimmedValue, sortOrder: allSnippets.maxSortOrder + 1)
         modelContext.insert(snippet)
         try? modelContext.save()
         cancelAddSnippet()
