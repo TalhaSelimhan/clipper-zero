@@ -1,6 +1,7 @@
 import SwiftData
 import Foundation
 
+// TODO: ClipCollection is defined but collection management (create, assign clips) is not yet implemented in the UI.
 @Model
 final class ClipCollection {
     var id: UUID
