@@ -190,28 +190,30 @@ struct SnippetsSettingsTab: View {
 
     var body: some View {
         VStack(alignment: .leading) {
-            List {
-                ForEach(snippets) { snippet in
-                    SnippetSettingsRow(snippet: snippet) {
-                        modelContext.delete(snippet)
-                        try? modelContext.save()
+            Form {
+                Section {
+                    if snippets.isEmpty {
+                        ContentUnavailableView("No Snippets",
+                            systemImage: "note.text",
+                            description: Text("Add snippets for quick access to frequently used text."))
+                    } else {
+                        ForEach(snippets) { snippet in
+                            SnippetSettingsRow(
+                                snippet: snippet,
+                                canMoveUp: snippet.id != snippets.first?.id,
+                                canMoveDown: snippet.id != snippets.last?.id,
+                                onMoveUp: { moveSnippet(snippet, direction: -1) },
+                                onMoveDown: { moveSnippet(snippet, direction: 1) },
+                                onDelete: {
+                                    modelContext.delete(snippet)
+                                    try? modelContext.save()
+                                }
+                            )
+                        }
                     }
-                }
-                .onMove { indices, newOffset in
-                    var ordered = snippets.map { $0 }
-                    ordered.move(fromOffsets: indices, toOffset: newOffset)
-                    for (index, snippet) in ordered.enumerated() {
-                        snippet.sortOrder = index
-                    }
-                    try? modelContext.save()
-                }
-
-                if snippets.isEmpty {
-                    ContentUnavailableView("No Snippets",
-                        systemImage: "note.text",
-                        description: Text("Add snippets for quick access to frequently used text."))
                 }
             }
+            .formStyle(.grouped)
 
             HStack {
                 Button {
@@ -229,10 +231,25 @@ struct SnippetsSettingsTab: View {
             .padding(.bottom)
         }
     }
+
+    private func moveSnippet(_ snippet: SnippetItem, direction: Int) {
+        guard let idx = snippets.firstIndex(where: { $0.id == snippet.id }) else { return }
+        let neighborIdx = idx + direction
+        guard snippets.indices.contains(neighborIdx) else { return }
+        let neighbor = snippets[neighborIdx]
+        let tmp = snippet.sortOrder
+        snippet.sortOrder = neighbor.sortOrder
+        neighbor.sortOrder = tmp
+        try? modelContext.save()
+    }
 }
 
 struct SnippetSettingsRow: View {
     @Bindable var snippet: SnippetItem
+    var canMoveUp: Bool = true
+    var canMoveDown: Bool = true
+    var onMoveUp: () -> Void = {}
+    var onMoveDown: () -> Void = {}
     let onDelete: () -> Void
 
     var body: some View {
@@ -240,11 +257,30 @@ struct SnippetSettingsRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 TextField("Name", text: $snippet.name)
                     .font(.body)
+                    .textFieldStyle(.plain)
                 TextField("Value", text: $snippet.value)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .textFieldStyle(.plain)
             }
             Spacer()
+            VStack(spacing: 2) {
+                Button(action: onMoveUp) {
+                    Image(systemName: "chevron.up")
+                        .font(.caption2)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canMoveUp)
+                .opacity(canMoveUp ? 1 : 0.3)
+
+                Button(action: onMoveDown) {
+                    Image(systemName: "chevron.down")
+                        .font(.caption2)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canMoveDown)
+                .opacity(canMoveDown ? 1 : 0.3)
+            }
             Button(action: onDelete) {
                 Image(systemName: "minus.circle.fill")
                     .foregroundStyle(.red)
