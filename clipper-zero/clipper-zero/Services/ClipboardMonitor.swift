@@ -71,8 +71,8 @@ final class ClipboardMonitor {
             sourceAppName: frontApp?.localizedName
         )
 
-        if contentType == .image, let imgData = content {
-            clip.previewData = generateThumbnail(from: imgData)
+        if contentType == .image {
+            clip.previewData = generateThumbnail(from: content)
         }
 
         context.insert(clip)
