@@ -136,6 +136,15 @@ struct MenuBarView: View {
             Text("⌘⇧V Open Panel")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Button("Quit") {
+                NSApplication.shared.terminate(nil)
+            }
+            .buttonStyle(.plain)
+            .font(.caption)
+            .keyboardShortcut("q")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
