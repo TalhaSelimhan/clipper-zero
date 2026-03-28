@@ -1,7 +1,6 @@
 import SwiftUI
 
-struct OnboardingPage: Identifiable {
-    let id: Int
+struct OnboardingPage {
     let icon: String
     let iconColor: Color
     let title: String
@@ -14,35 +13,30 @@ struct OnboardingView: View {
 
     private let pages: [OnboardingPage] = [
         OnboardingPage(
-            id: 0,
             icon: "clipboard.fill",
             iconColor: .accentColor,
             title: "Welcome to Clipper Zero",
             description: "A powerful clipboard manager that lives in your menu bar. Everything you copy is saved, searchable, and always at your fingertips."
         ),
         OnboardingPage(
-            id: 1,
             icon: "magnifyingglass",
             iconColor: .blue,
             title: "Instant Search",
             description: "Press **⌘⇧V** anywhere to open the search panel. Find any clip by content — text, images, files, links, or colors."
         ),
         OnboardingPage(
-            id: 2,
             icon: "pin.fill",
             iconColor: .orange,
             title: "Pin & Save Snippets",
             description: "Pin important clips to keep them forever. Save frequently used text as snippets for instant access."
         ),
         OnboardingPage(
-            id: 3,
             icon: "hand.raised.fill",
             iconColor: .green,
             title: "Your Privacy, Your Control",
             description: "Exclude sensitive apps like 1Password from clipboard capture. Access everything from the menu bar — no dock icon, no clutter."
         ),
         OnboardingPage(
-            id: 4,
             icon: "checkmark.circle.fill",
             iconColor: .green,
             title: "You're All Set",
@@ -75,18 +69,21 @@ struct OnboardingView: View {
                 .font(.system(size: 56))
                 .foregroundStyle(pages[currentPage].iconColor)
                 .id("icon-\(currentPage)")
+                .transition(.opacity)
 
             Text(pages[currentPage].title)
                 .font(.title)
                 .fontWeight(.bold)
                 .id("title-\(currentPage)")
+                .transition(.opacity)
 
-            Text(LocalizedStringKey(pages[currentPage].description))
+            Text(try! AttributedString(markdown: pages[currentPage].description))
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 360)
                 .id("desc-\(currentPage)")
+                .transition(.opacity)
 
             Spacer()
         }
@@ -97,7 +94,7 @@ struct OnboardingView: View {
 
     private var pageIndicators: some View {
         HStack(spacing: 8) {
-            ForEach(0..<pages.count, id: \.self) { index in
+            ForEach(pages.indices, id: \.self) { index in
                 Circle()
                     .fill(index == currentPage ? Color.accentColor : Color.primary.opacity(0.2))
                     .frame(width: 8, height: 8)
@@ -112,7 +109,7 @@ struct OnboardingView: View {
     private var navigationBar: some View {
         HStack {
             Button("Back") {
-                withAnimation { currentPage -= 1 }
+                if currentPage > 0 { currentPage -= 1 }
             }
             .opacity(currentPage > 0 ? 1 : 0)
             .disabled(currentPage == 0)
@@ -126,24 +123,18 @@ struct OnboardingView: View {
 
             if currentPage == pages.count - 1 {
                 Button("Get Started") {
-                    completeOnboarding()
+                    onComplete()
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
             } else {
                 Button("Next") {
-                    withAnimation { currentPage += 1 }
+                    currentPage += 1
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
             }
         }
-    }
-
-    // MARK: - Actions
-
-    private func completeOnboarding() {
-        onComplete()
     }
 }

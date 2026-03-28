@@ -12,7 +12,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private(set) var hotkeyManager: GlobalHotkeyManager!
 
     private var onboardingWindow: NSWindow?
-    private var isCompletingOnboarding = false
+    private var onboardingCompleted = false
+
+    private enum DefaultsKey {
+        static let hasCompletedOnboarding = "hasCompletedOnboarding"
+    }
+
+    private static let onboardingSize = CGSize(width: 520, height: 440)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
@@ -26,7 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self?.panelController.togglePanel()
         }
 
-        if UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") {
+        if UserDefaults.standard.bool(forKey: DefaultsKey.hasCompletedOnboarding) {
             checkAccessibilityAndStart()
         } else {
             showOnboarding()
@@ -41,10 +47,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         let hostingView = NSHostingView(rootView: onboardingView)
-        hostingView.frame = NSRect(x: 0, y: 0, width: 520, height: 440)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 440),
+            contentRect: NSRect(origin: .zero, size: Self.onboardingSize),
             styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -62,15 +67,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.center()
         window.makeKeyAndOrderFront(nil)
 
-        NSApp.activate(ignoringOtherApps: true)
+        if #available(macOS 14.0, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+        }
 
         self.onboardingWindow = window
     }
 
-    func completeOnboarding() {
-        guard !isCompletingOnboarding else { return }
-        isCompletingOnboarding = true
-        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+    private func completeOnboarding() {
+        guard !onboardingCompleted else { return }
+        onboardingCompleted = true
+        UserDefaults.standard.set(true, forKey: DefaultsKey.hasCompletedOnboarding)
         onboardingWindow?.close()
         onboardingWindow = nil
         checkAccessibilityAndStart()
@@ -81,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         guard let closingWindow = notification.object as? NSWindow,
               closingWindow === onboardingWindow,
-              !isCompletingOnboarding else { return }
+              !onboardingCompleted else { return }
         completeOnboarding()
     }
 
