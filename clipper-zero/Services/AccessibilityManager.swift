@@ -10,11 +10,7 @@ enum AccessibilityManager {
     }
 
     static func promptForAccessibility() {
-        let trusted = AXIsProcessTrustedWithOptions(
-            [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
-        )
-
-        if !trusted {
+        if !isAccessibilityGranted() {
             let alert = NSAlert()
             alert.messageText = "Accessibility Permission Required"
             alert.informativeText = "Clipper Zero needs Accessibility permission to:\n\n• Register the global hotkey (⌘⇧V)\n• Paste clips into other apps\n\nPlease grant access in System Settings → Privacy & Security → Accessibility."
