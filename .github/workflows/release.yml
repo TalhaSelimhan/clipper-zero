@@ -227,7 +227,14 @@ jobs:
           SIGN_UPDATE="${{ steps.sparkle.outputs.bin_dir }}/sign_update"
           chmod +x "$SIGN_UPDATE"
 
-          SIGNATURE=$(echo "$SPARKLE_ED_PRIVATE_KEY" | "$SIGN_UPDATE" "$DMG_PATH" --ed-key-file -)
+          # Write key to temp file to avoid pipe/echo issues
+          ED_KEY_FILE="$RUNNER_TEMP/sparkle_ed_key"
+          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" > "$ED_KEY_FILE"
+
+          SIGNATURE=$("$SIGN_UPDATE" "$DMG_PATH" --ed-key-file "$ED_KEY_FILE")
+
+          # Clean up key file
+          rm -f "$ED_KEY_FILE"
 
           echo "SPARKLE_SIGNATURE<<EOF" >> "$GITHUB_ENV"
           echo "$SIGNATURE" >> "$GITHUB_ENV"
@@ -253,12 +260,18 @@ jobs:
             cp "docs/appcast.xml" "$APPCAST_DIR/"
           fi
 
+          # Write key to temp file to avoid pipe/echo issues
+          ED_KEY_FILE="$RUNNER_TEMP/sparkle_ed_key"
+          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" > "$ED_KEY_FILE"
+
           # Generate appcast with download URL pointing to GitHub Releases
-          echo "$SPARKLE_ED_PRIVATE_KEY" | \
-            "$GENERATE_APPCAST" \
-              --ed-key-file - \
+          "$GENERATE_APPCAST" \
+              --ed-key-file "$ED_KEY_FILE" \
               --download-url-prefix "https://github.com/TalhaSelimhan/clipper-zero/releases/download/${{ steps.version.outputs.tag }}/" \
               "$APPCAST_DIR"
+
+          # Clean up key file
+          rm -f "$ED_KEY_FILE"
 
           # Copy to docs/ for GitHub Pages
           mkdir -p docs
