@@ -71,7 +71,30 @@ jobs:
             -S apple-tool:,apple: \
             -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          # Prepend build keychain to current search list (login.keychain-db may not exist on runner)
+          EXISTING_KEYCHAINS=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $EXISTING_KEYCHAINS
+
+      # ── Verify certificate ───────────────────────────────────
+      - name: Verify signing certificate
+        run: |
+          echo "Available signing identities:"
+          security find-identity -v -p codesigning
+          echo ""
+          echo "Checking for Developer ID Application certificate..."
+          if security find-identity -v -p codesigning | grep -q "Developer ID Application"; then
+            echo "✓ Developer ID Application certificate found"
+          else
+            echo "::error::Developer ID Application certificate NOT found in keychain."
+            echo "Ensure DEVELOPER_ID_CERT_BASE64 and DEVELOPER_ID_CERT_PASSWORD secrets are set correctly."
+            echo ""
+            echo "To create the secret:"
+            echo "  1. Export your Developer ID Application certificate from Keychain Access as a .p12 file"
+            echo "  2. Run: base64 -i certificate.p12 | pbcopy"
+            echo "  3. Set DEVELOPER_ID_CERT_BASE64 in GitHub Secrets to the clipboard contents"
+            echo "  4. Set DEVELOPER_ID_CERT_PASSWORD to the password you used when exporting"
+            exit 1
+          fi
 
       # ── Resolve SPM dependencies ──────────────────────────────
       - name: Resolve Swift packages
