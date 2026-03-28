@@ -18,7 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
     }
 
-    private static let onboardingSize = CGSize(width: 520, height: 440)
+    private static let onboardingSize = CGSize(width: OnboardingView.frameWidth, height: OnboardingView.frameHeight)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
@@ -42,6 +42,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: - Onboarding
 
     private func showOnboarding() {
+        // Show in Cmd+Tab during onboarding so users can find the window
+        NSApp.setActivationPolicy(.regular)
+
         let onboardingView = OnboardingView { [weak self] in
             self?.completeOnboarding()
         }
@@ -58,9 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
-        window.backgroundColor = .clear
-        window.isOpaque = false
+        window.backgroundColor = NSColor(red: 0.05, green: 0.05, blue: 0.1, alpha: 1.0)
         window.hasShadow = true
+        window.appearance = NSAppearance(named: .darkAqua)
         window.contentView = hostingView
         window.isReleasedWhenClosed = false
         window.delegate = self
@@ -82,6 +85,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         UserDefaults.standard.set(true, forKey: DefaultsKey.hasCompletedOnboarding)
         onboardingWindow?.close()
         onboardingWindow = nil
+
+        // Hide from Cmd+Tab again (agent/menu bar app)
+        NSApp.setActivationPolicy(.accessory)
+
         checkAccessibilityAndStart()
     }
 
