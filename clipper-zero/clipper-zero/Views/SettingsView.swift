@@ -33,7 +33,7 @@ struct SettingsView: View {
 // MARK: - General Settings
 
 struct GeneralSettingsTab: View {
-    @AppStorage("launchAtLogin") private var launchAtLogin = false
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("historyLimit") private var historyLimit = 1000
     @AppStorage("playSoundOnCopy") private var playSoundOnCopy = false
 
