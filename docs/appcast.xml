@@ -6,6 +6,14 @@
         <description>Most recent updates for Clipper Zero</description>
         <language>en</language>
         <item>
+            <title>1.2.0</title>
+            <pubDate>Sat, 28 Mar 2026 20:44:37 +0000</pubDate>
+            <sparkle:version>8</sparkle:version>
+            <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/TalhaSelimhan/clipper-zero/releases/download/v1.2.0/ClipperZero-1.2.0.dmg" length="12495508" type="application/octet-stream" sparkle:edSignature="D1Y/l12gmHlWUWjxN9XadgbOH/eg5dsZfJWDIMp+09skN7KAjnXdEWbtjJk6B+d7GHN/uwSYKhYWV+4YE3bEBQ=="/>
+        </item>
+        <item>
             <title>1.1.0</title>
             <pubDate>Sat, 28 Mar 2026 19:22:30 +0000</pubDate>
             <sparkle:version>6</sparkle:version>
