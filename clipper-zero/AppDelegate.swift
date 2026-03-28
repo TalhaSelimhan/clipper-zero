@@ -107,6 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func checkAccessibilityAndStart() {
         if AccessibilityManager.isAccessibilityGranted() {
+            promptLaunchAtLoginIfNeeded()
             startServices()
         } else {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
