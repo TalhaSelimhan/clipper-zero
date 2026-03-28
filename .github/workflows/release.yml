@@ -229,6 +229,7 @@ jobs:
 
           # Write key to temp file to avoid pipe/echo issues
           ED_KEY_FILE="$RUNNER_TEMP/sparkle_ed_key"
+          install -m 600 /dev/null "$ED_KEY_FILE"
           printf '%s' "$SPARKLE_ED_PRIVATE_KEY" > "$ED_KEY_FILE"
 
           SIGNATURE=$("$SIGN_UPDATE" "$DMG_PATH" --ed-key-file "$ED_KEY_FILE")
@@ -262,6 +263,7 @@ jobs:
 
           # Write key to temp file to avoid pipe/echo issues
           ED_KEY_FILE="$RUNNER_TEMP/sparkle_ed_key"
+          install -m 600 /dev/null "$ED_KEY_FILE"
           printf '%s' "$SPARKLE_ED_PRIVATE_KEY" > "$ED_KEY_FILE"
 
           # Generate appcast with download URL pointing to GitHub Releases
