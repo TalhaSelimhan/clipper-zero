@@ -43,18 +43,18 @@ struct OnboardingPageView: View {
         .onChange(of: isActive) { _, active in
             if active {
                 elementsVisible = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(50))
                     elementsVisible = true
                 }
             } else {
                 elementsVisible = false
             }
         }
-        .onAppear {
+        .task {
             if isActive {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    elementsVisible = true
-                }
+                try? await Task.sleep(for: .milliseconds(100))
+                elementsVisible = true
             }
         }
     }

@@ -3,8 +3,6 @@ import SwiftUI
 struct OnboardingBackgroundView: View {
     let pages: [OnboardingPage]
     let currentPage: Int
-    let dragOffset: CGFloat
-    let frameWidth: CGFloat
 
     var body: some View {
         GeometryReader { geometry in
@@ -12,10 +10,9 @@ struct OnboardingBackgroundView: View {
                 ForEach(pages) { page in
                     ZStack {
                         // Background image or fallback gradient
-                        if let nsImage = NSImage(named: page.imageName) {
-                            Image(nsImage: nsImage)
-                                .resizable()
-                                .aspectFill(width: frameWidth, height: geometry.size.height)
+                        if NSImage(named: page.imageName) != nil {
+                            Image(page.imageName)
+                                .aspectFill(width: geometry.size.width, height: geometry.size.height)
                         } else {
                             // Fallback: radial gradient when image not available
                             RadialGradient(
@@ -41,11 +38,10 @@ struct OnboardingBackgroundView: View {
                             endPoint: .bottom
                         )
                     }
-                    .frame(width: frameWidth, height: geometry.size.height)
+                    .frame(width: geometry.size.width, height: geometry.size.height)
                 }
             }
-            // Parallax: image moves at 0.4x the drag rate
-            .offset(x: -CGFloat(currentPage) * frameWidth + dragOffset * 0.4)
+            .offset(x: -CGFloat(currentPage) * geometry.size.width)
         }
     }
 }

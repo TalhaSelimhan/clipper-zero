@@ -18,7 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
     }
 
-    private static let onboardingSize = CGSize(width: 960, height: 640)
+    private static let onboardingSize = CGSize(width: OnboardingView.frameWidth, height: OnboardingView.frameHeight)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self

@@ -4,23 +4,19 @@ struct OnboardingView: View {
     var onComplete: () -> Void
 
     @State private var currentPage = 0
-    @State private var dragOffset: CGFloat = 0
     @State private var windowAppeared = false
 
     private let pages = OnboardingPage.all
-    private let frameWidth: CGFloat = 960
-    private let frameHeight: CGFloat = 640
+    static let frameWidth: CGFloat = 960
+    static let frameHeight: CGFloat = 640
     private let cardHeight: CGFloat = 160
-    private let dragThreshold: CGFloat = 80
 
     var body: some View {
         ZStack(alignment: .bottom) {
             // Full-bleed background image
             OnboardingBackgroundView(
                 pages: pages,
-                currentPage: currentPage,
-                dragOffset: dragOffset,
-                frameWidth: frameWidth
+                currentPage: currentPage
             )
             .animation(OnboardingSpring.page, value: currentPage)
 
@@ -29,9 +25,8 @@ struct OnboardingView: View {
                 .frame(height: cardHeight)
                 .padding(20)
         }
-        .frame(width: frameWidth, height: frameHeight)
+        .frame(width: Self.frameWidth, height: Self.frameHeight)
         .clipped()
-        .gesture(dragGesture)
         .opacity(windowAppeared ? 1 : 0)
         .scaleEffect(windowAppeared ? 1 : 0.96)
         .onAppear {
@@ -82,38 +77,9 @@ struct OnboardingView: View {
                     .frame(width: geometry.size.width, height: geometry.size.height)
                 }
             }
-            .offset(x: -CGFloat(currentPage) * geometry.size.width + dragOffset)
+            .offset(x: -CGFloat(currentPage) * geometry.size.width)
             .animation(OnboardingSpring.page, value: currentPage)
         }
-    }
-
-    // MARK: - Drag Gesture
-
-    private var dragGesture: some Gesture {
-        DragGesture()
-            .onChanged { value in
-                let translation = value.translation.width
-                if (currentPage == 0 && translation > 0) ||
-                    (currentPage == pages.count - 1 && translation < 0) {
-                    dragOffset = translation * 0.3
-                } else {
-                    dragOffset = translation
-                }
-            }
-            .onEnded { value in
-                let velocity = value.predictedEndTranslation.width - value.translation.width
-                let shouldAdvance = value.translation.width < -dragThreshold || velocity < -300
-                let shouldRetreat = value.translation.width > dragThreshold || velocity > 300
-
-                withAnimation(OnboardingSpring.page) {
-                    if shouldAdvance && currentPage < pages.count - 1 {
-                        currentPage += 1
-                    } else if shouldRetreat && currentPage > 0 {
-                        currentPage -= 1
-                    }
-                    dragOffset = 0
-                }
-            }
     }
 
     // MARK: - Navigation
