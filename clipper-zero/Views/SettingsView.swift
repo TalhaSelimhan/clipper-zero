@@ -187,8 +187,24 @@ struct SnippetsSettingsTab: View {
     @Query(sort: \SnippetItem.sortOrder) private var snippets: [SnippetItem]
     @Environment(\.modelContext) private var modelContext
 
+    private var iCloudAvailable: Bool {
+        FileManager.default.ubiquityIdentityToken != nil
+    }
+
     var body: some View {
         VStack(alignment: .leading) {
+            HStack(spacing: 6) {
+                Image(systemName: iCloudAvailable ? "checkmark.icloud" : "exclamationmark.icloud")
+                    .foregroundStyle(iCloudAvailable ? .green : .orange)
+                Text(iCloudAvailable
+                     ? "Snippets sync across your devices via iCloud."
+                     : "Sign in to iCloud to sync snippets across devices.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+
             Form {
                 Section {
                     if snippets.isEmpty {

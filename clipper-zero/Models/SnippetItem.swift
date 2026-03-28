@@ -3,11 +3,11 @@ import SwiftData
 
 @Model
 final class SnippetItem {
-    var id: UUID
-    var name: String
-    var value: String
-    var createdAt: Date
-    var sortOrder: Int
+    var id: UUID = UUID()
+    var name: String = ""
+    var value: String = ""
+    var createdAt: Date = Date()
+    var sortOrder: Int = 0
 
     init(name: String, value: String, sortOrder: Int = 0) {
         self.id = UUID()
