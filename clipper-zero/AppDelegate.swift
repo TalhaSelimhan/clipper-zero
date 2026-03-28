@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import SwiftData
 import SwiftUI
 
@@ -16,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private enum DefaultsKey {
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
+        static let hasAskedLaunchAtLogin = "hasAskedLaunchAtLogin"
     }
 
     private static let onboardingSize = CGSize(width: OnboardingView.frameWidth, height: OnboardingView.frameHeight)
@@ -112,8 +114,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
 
             AccessibilityManager.waitForPermission { [weak self] in
+                self?.promptLaunchAtLoginIfNeeded()
                 self?.startServices()
             }
+        }
+    }
+
+    private func promptLaunchAtLoginIfNeeded() {
+        guard !UserDefaults.standard.bool(forKey: DefaultsKey.hasAskedLaunchAtLogin) else { return }
+        UserDefaults.standard.set(true, forKey: DefaultsKey.hasAskedLaunchAtLogin)
+
+        let alert = NSAlert()
+        alert.messageText = "Open at Launch?"
+        alert.informativeText = "Would you like Clipper Zero to start automatically when you log in?"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Yes")
+        alert.addButton(withTitle: "No")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            try? SMAppService.mainApp.register()
         }
     }
 
