@@ -1,9 +1,9 @@
 import SwiftUI
 import SwiftData
-
 @main
 struct ClipperZeroApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @State private var updaterViewModel = CheckForUpdatesViewModel()
 
     let modelContainer: ModelContainer
 
@@ -26,7 +26,7 @@ struct ClipperZeroApp: App {
         .menuBarExtraStyle(.window)
 
         Settings {
-            SettingsView()
+            SettingsView(updaterViewModel: updaterViewModel)
         }
         .modelContainer(modelContainer)
     }

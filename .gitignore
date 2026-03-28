@@ -70,5 +70,4 @@ fastlane/test_output
 .superpowers/
 skills-lock.json
 
-# Documentation
-docs/
+# Documentation (docs/ not ignored — used for GitHub Pages appcast hosting)

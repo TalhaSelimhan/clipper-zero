@@ -4,6 +4,8 @@ import ServiceManagement
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
+    var updaterViewModel: CheckForUpdatesViewModel
+
     var body: some View {
         TabView {
             GeneralSettingsTab()
@@ -21,7 +23,7 @@ struct SettingsView: View {
                     Label("Snippets", systemImage: "note.text")
                 }
 
-            AboutTab()
+            AboutTab(updaterViewModel: updaterViewModel)
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
@@ -289,6 +291,8 @@ struct SnippetSettingsRow: View {
 // MARK: - About
 
 struct AboutTab: View {
+    var updaterViewModel: CheckForUpdatesViewModel
+
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "clipboard")
@@ -302,13 +306,21 @@ struct AboutTab: View {
             Text("A modern macOS clipboard manager")
                 .foregroundStyle(.secondary)
 
-            Text("Version 1.0.0")
+            Text("Version \(appVersion)")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+
+            CheckForUpdatesView(viewModel: updaterViewModel)
 
             Spacer()
         }
         .padding(.top, 32)
         .frame(maxWidth: .infinity)
+    }
+
+    private var appVersion: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        return "\(version) (\(build))"
     }
 }

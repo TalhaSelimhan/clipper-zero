@@ -5,5 +5,9 @@
 	<key>NSAccessibilityUsageDescription</key>
 	<string>Clipper Zero needs Accessibility to register hotkeys and paste clips
    into other apps.</string>
+	<key>SUFeedURL</key>
+	<string>https://talhaselimhan.github.io/clipper-zero/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>CE26m+abeWY0IRyAeOfIyJd4p0sbocSytkACV6l9Q3k=</string>
 </dict>
 </plist>

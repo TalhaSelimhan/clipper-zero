@@ -1,0 +1,290 @@
+name: Build, Notarize & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  SCHEME: clipper-zero
+  PROJECT: clipper-zero.xcodeproj
+  PRODUCT_NAME: clipper-zero
+  APP_DISPLAY_NAME: Clipper Zero
+
+jobs:
+  build-and-release:
+    runs-on: macos-15
+    permissions:
+      contents: write
+
+    steps:
+      # ── Checkout ──────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Extract version from tag ──────────────────────────────
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag=v$TAG" >> "$GITHUB_OUTPUT"
+
+      # ── Select Xcode ──────────────────────────────────────────
+      - name: Select Xcode
+        run: |
+          # List available Xcode versions and select the latest
+          ls /Applications/ | grep Xcode
+          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using Xcode at: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          xcodebuild -version
+
+      # ── Install Developer ID certificate ──────────────────────
+      - name: Install Developer ID certificate
+        env:
+          CERT_BASE64: ${{ secrets.DEVELOPER_ID_CERT_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          # Create and configure temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import certificate
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          echo "$CERT_BASE64" | base64 --decode > "$CERT_PATH"
+
+          security import "$CERT_PATH" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/productsign
+
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+      # ── Resolve SPM dependencies ──────────────────────────────
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project "$PROJECT" \
+            -scheme "$SCHEME"
+
+      # ── Build release archive ─────────────────────────────────
+      - name: Build release archive
+        run: |
+          xcodebuild archive \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/ClipperZero.xcarchive" \
+            MARKETING_VERSION="${{ steps.version.outputs.version }}" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
+            OTHER_CODE_SIGN_FLAGS="--timestamp --options runtime"
+
+      # ── Export the archive ────────────────────────────────────
+      - name: Export archive
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+            "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>developer-id</string>
+            <key>teamID</key>
+            <string>3EZCN26J72</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Developer ID Application</string>
+          </dict>
+          </plist>
+          PLIST
+
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/ClipperZero.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export"
+
+      # ── Notarize the app ──────────────────────────────────────
+      - name: Notarize app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          APP_PATH="$RUNNER_TEMP/export/$PRODUCT_NAME.app"
+
+          # Create a ZIP for notarization submission
+          ditto -c -k --keepParent "$APP_PATH" "$RUNNER_TEMP/ClipperZero-notarize.zip"
+
+          # Submit for notarization and wait
+          xcrun notarytool submit "$RUNNER_TEMP/ClipperZero-notarize.zip" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait --timeout 600
+
+          # Staple the notarization ticket to the app
+          xcrun stapler staple "$APP_PATH"
+
+      # ── Create DMG ────────────────────────────────────────────
+      - name: Create DMG
+        run: |
+          APP_PATH="$RUNNER_TEMP/export/$PRODUCT_NAME.app"
+          DMG_NAME="ClipperZero-${{ steps.version.outputs.version }}.dmg"
+          DMG_PATH="$RUNNER_TEMP/$DMG_NAME"
+
+          # Stage DMG contents
+          DMG_TEMP="$RUNNER_TEMP/dmg-staging"
+          mkdir -p "$DMG_TEMP"
+          cp -R "$APP_PATH" "$DMG_TEMP/"
+          ln -s /Applications "$DMG_TEMP/Applications"
+
+          hdiutil create \
+            -volname "$APP_DISPLAY_NAME" \
+            -srcfolder "$DMG_TEMP" \
+            -ov -format UDZO \
+            "$DMG_PATH"
+
+          # Notarize the DMG
+          xcrun notarytool submit "$DMG_PATH" \
+            --apple-id "${{ secrets.APPLE_ID }}" \
+            --password "${{ secrets.APPLE_ID_PASSWORD }}" \
+            --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+            --wait --timeout 600
+
+          xcrun stapler staple "$DMG_PATH"
+
+          echo "DMG_PATH=$DMG_PATH" >> "$GITHUB_ENV"
+          echo "DMG_NAME=$DMG_NAME" >> "$GITHUB_ENV"
+
+      # ── Setup Sparkle tools ───────────────────────────────────
+      - name: Locate Sparkle tools
+        id: sparkle
+        run: |
+          # Sparkle tools are in the resolved SPM package
+          SPARKLE_BIN=$(find ~/Library/Developer/Xcode -name "sign_update" -path "*/Sparkle/bin/*" 2>/dev/null | head -1)
+
+          if [ -z "$SPARKLE_BIN" ]; then
+            # Fallback: check the SPM checkouts in DerivedData
+            SPARKLE_BIN=$(find "$RUNNER_TEMP" -name "sign_update" 2>/dev/null | head -1)
+          fi
+
+          if [ -z "$SPARKLE_BIN" ]; then
+            echo "::error::Could not find Sparkle sign_update tool"
+            exit 1
+          fi
+
+          SPARKLE_BIN_DIR=$(dirname "$SPARKLE_BIN")
+          echo "bin_dir=$SPARKLE_BIN_DIR" >> "$GITHUB_OUTPUT"
+          echo "Found Sparkle tools at: $SPARKLE_BIN_DIR"
+          ls -la "$SPARKLE_BIN_DIR"
+
+      # ── Sign update with Sparkle EdDSA ────────────────────────
+      - name: Sign update with Sparkle EdDSA key
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          SIGN_UPDATE="${{ steps.sparkle.outputs.bin_dir }}/sign_update"
+          chmod +x "$SIGN_UPDATE"
+
+          SIGNATURE=$(echo "$SPARKLE_ED_PRIVATE_KEY" | "$SIGN_UPDATE" "$DMG_PATH" --ed-key-file -)
+
+          echo "SPARKLE_SIGNATURE<<EOF" >> "$GITHUB_ENV"
+          echo "$SIGNATURE" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+
+          echo "Sparkle signature: $SIGNATURE"
+
+      # ── Generate appcast.xml ──────────────────────────────────
+      - name: Generate appcast
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          GENERATE_APPCAST="${{ steps.sparkle.outputs.bin_dir }}/generate_appcast"
+          chmod +x "$GENERATE_APPCAST"
+
+          # Stage the release artifact
+          APPCAST_DIR="$RUNNER_TEMP/appcast-staging"
+          mkdir -p "$APPCAST_DIR"
+          cp "$DMG_PATH" "$APPCAST_DIR/"
+
+          # Include existing appcast if present
+          if [ -f "docs/appcast.xml" ]; then
+            cp "docs/appcast.xml" "$APPCAST_DIR/"
+          fi
+
+          # Generate appcast with download URL pointing to GitHub Releases
+          echo "$SPARKLE_ED_PRIVATE_KEY" | \
+            "$GENERATE_APPCAST" \
+              --ed-key-file - \
+              --download-url-prefix "https://github.com/TalhaSelimhan/clipper-zero/releases/download/${{ steps.version.outputs.tag }}/" \
+              "$APPCAST_DIR"
+
+          # Copy to docs/ for GitHub Pages
+          mkdir -p docs
+          cp "$APPCAST_DIR/appcast.xml" docs/appcast.xml
+
+          echo "Generated appcast.xml:"
+          cat docs/appcast.xml
+
+      # ── Commit appcast.xml back to repo ───────────────────────
+      - name: Commit updated appcast.xml
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # We're on a detached HEAD from the tag — checkout main
+          DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
+          git fetch origin "$DEFAULT_BRANCH"
+          git checkout "$DEFAULT_BRANCH"
+
+          mkdir -p docs
+          cp "$RUNNER_TEMP/appcast-staging/appcast.xml" docs/appcast.xml
+
+          git add docs/appcast.xml
+          git diff --cached --quiet || \
+            git commit -m "Update appcast.xml for ${{ steps.version.outputs.tag }}"
+          git push origin "$DEFAULT_BRANCH"
+
+      # ── Create GitHub Release ─────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "Clipper Zero ${{ steps.version.outputs.version }}"
+          body: |
+            ## Clipper Zero ${{ steps.version.outputs.version }}
+
+            ### Installation
+            1. Download `${{ env.DMG_NAME }}` below
+            2. Open the DMG and drag Clipper Zero to Applications
+            3. Existing users will be notified automatically via in-app updates
+          files: ${{ env.DMG_PATH }}
+          draft: false
+          prerelease: false
+
+      # ── Cleanup ───────────────────────────────────────────────
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          if [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH"
+          fi
