@@ -69,3 +69,6 @@ fastlane/test_output
 .claude/
 .superpowers/
 skills-lock.json
+
+# Documentation
+docs/
