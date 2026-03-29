@@ -6,6 +6,15 @@ import SwiftData
 struct SnippetsSettingsTab: View {
     @Query(sort: \SnippetItem.sortOrder) private var snippets: [SnippetItem]
     @Environment(\.modelContext) private var modelContext
+    @State private var expandedSnippetID: UUID?
+    @State private var scrollTarget: UUID?
+    @FocusState private var focusedField: SnippetField?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    enum SnippetField: Hashable {
+        case title(UUID)
+        case content(UUID)
+    }
 
     private var iCloudAvailable: Bool {
         FileManager.default.ubiquityIdentityToken != nil
@@ -25,29 +34,66 @@ struct SnippetsSettingsTab: View {
             .padding(.horizontal)
             .padding(.top, 8)
 
-            Form {
-                Section {
-                    if snippets.isEmpty {
-                        ContentUnavailableView("No Snippets",
-                            systemImage: "note.text",
-                            description: Text("Add snippets for quick access to frequently used text."))
-                    } else {
-                        ForEach(snippets) { snippet in
-                            SnippetSettingsRow(
-                                snippet: snippet,
-                                canMoveUp: snippet.id != snippets.first?.id,
-                                canMoveDown: snippet.id != snippets.last?.id,
-                                onMoveUp: { moveSnippet(snippet, direction: -1) },
-                                onMoveDown: { moveSnippet(snippet, direction: 1) },
-                                onDelete: {
-                                    deleteSnippet(snippet)
+            ScrollViewReader { proxy in
+                Form {
+                    Section {
+                        if snippets.isEmpty {
+                            ContentUnavailableView("No Snippets",
+                                systemImage: "note.text",
+                                description: Text("Add snippets for quick access to frequently used text."))
+                        } else {
+                            ForEach(snippets) { snippet in
+                                if expandedSnippetID == snippet.id {
+                                    SnippetExpandedEditor(
+                                        snippet: snippet,
+                                        focusedField: $focusedField,
+                                        canMoveUp: snippet.id != snippets.first?.id,
+                                        canMoveDown: snippet.id != snippets.last?.id,
+                                        onMoveUp: { moveSnippet(snippet, direction: -1) },
+                                        onMoveDown: { moveSnippet(snippet, direction: 1) },
+                                        onCollapse: {
+                                            withAnimation {
+                                                expandedSnippetID = nil
+                                            }
+                                        },
+                                        onDelete: { deleteSnippet(snippet) }
+                                    )
+                                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+                                    .id(snippet.id)
+                                } else {
+                                    Button {
+                                        withAnimation {
+                                            expandedSnippetID = snippet.id
+                                        }
+                                    } label: {
+                                        SnippetCollapsedRow(snippet: snippet)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .transition(.opacity)
+                                    .id(snippet.id)
                                 }
-                            )
+                            }
+                        }
+                    }
+                }
+                .formStyle(.grouped)
+                .onChange(of: expandedSnippetID) { _, newValue in
+                    guard let id = newValue else { return }
+                    Task { @MainActor in
+                        focusedField = .title(id)
+                    }
+                }
+                .onChange(of: scrollTarget) { _, newValue in
+                    guard let id = newValue else { return }
+                    scrollTarget = nil
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(100))
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            proxy.scrollTo(id, anchor: .bottom)
                         }
                     }
                 }
             }
-            .formStyle(.grouped)
 
             HStack {
                 Button {
@@ -75,38 +121,85 @@ struct SnippetsSettingsTab: View {
     }
 
     private func addNewSnippet() {
-        let snippet = SnippetItem(name: "New Snippet", value: "", sortOrder: snippets.maxSortOrder + 1)
+        let snippet = SnippetItem(name: "", value: "", sortOrder: snippets.maxSortOrder + 1)
         modelContext.insert(snippet)
         try? modelContext.save()
+        expandedSnippetID = snippet.id
+        scrollTarget = snippet.id
     }
 
     private func deleteSnippet(_ snippet: SnippetItem) {
+        if expandedSnippetID == snippet.id {
+            expandedSnippetID = nil
+        }
         modelContext.delete(snippet)
         try? modelContext.save()
     }
 }
 
-struct SnippetSettingsRow: View {
-    @Bindable var snippet: SnippetItem
-    var canMoveUp: Bool = true
-    var canMoveDown: Bool = true
-    var onMoveUp: () -> Void = {}
-    var onMoveDown: () -> Void = {}
-    let onDelete: () -> Void
+// MARK: - Collapsed Row
+
+struct SnippetCollapsedRow: View {
+    let snippet: SnippetItem
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                TextField("Name", text: $snippet.name)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(snippet.name.isEmpty ? "Untitled Snippet" : snippet.name)
                     .font(.body)
-                    .textFieldStyle(.plain)
-                TextField("Value", text: $snippet.value)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textFieldStyle(.plain)
+                    .foregroundStyle(snippet.name.isEmpty ? .secondary : .primary)
+                if !snippet.value.isEmpty {
+                    Text(snippet.value)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
             Spacer()
-            VStack(spacing: 2) {
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+    }
+}
+
+// MARK: - Expanded Editor
+
+struct SnippetExpandedEditor: View {
+    @Bindable var snippet: SnippetItem
+    var focusedField: FocusState<SnippetsSettingsTab.SnippetField?>.Binding
+    var canMoveUp: Bool
+    var canMoveDown: Bool
+    var onMoveUp: () -> Void
+    var onMoveDown: () -> Void
+    var onCollapse: () -> Void
+    var onDelete: () -> Void
+
+    private var isContentFocused: Bool {
+        if case .content(snippet.id) = focusedField.wrappedValue { return true }
+        return false
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header — tappable to collapse
+            HStack {
+                Button(action: onCollapse) {
+                    HStack {
+                        Image(systemName: "chevron.down")
+                            .font(.caption)
+                            .foregroundStyle(Color.accentColor)
+
+                        Text(snippet.name.isEmpty ? "New Snippet" : snippet.name)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
                 Button(action: onMoveUp) {
                     Image(systemName: "chevron.up")
                         .font(.caption)
@@ -124,13 +217,54 @@ struct SnippetSettingsRow: View {
                 .disabled(!canMoveDown)
                 .opacity(canMoveDown ? 1 : 0.3)
                 .accessibilityLabel("Move down")
+
+                Button(action: onDelete) {
+                    Image(systemName: "minus.circle.fill")
+                        .foregroundStyle(.red)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Delete snippet")
             }
-            Button(action: onDelete) {
-                Image(systemName: "minus.circle.fill")
-                    .foregroundStyle(.red)
+            .padding(.bottom, 10)
+
+            // Title field
+            VStack(alignment: .leading, spacing: 4) {
+                Text("TITLE")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .tracking(0.5)
+                TextField("Snippet name", text: $snippet.name)
+                    .textFieldStyle(.roundedBorder)
+                    .focused(focusedField, equals: .title(snippet.id))
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Delete snippet")
+            .padding(.bottom, 10)
+
+            // Content field
+            VStack(alignment: .leading, spacing: 4) {
+                Text("CONTENT")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .tracking(0.5)
+                TextEditor(text: $snippet.value)
+                    .font(.body)
+                    .frame(minHeight: 80)
+                    .scrollContentBackground(.hidden)
+                    .focused(focusedField, equals: .content(snippet.id))
+                    .padding(4)
+                    .background(Color(nsColor: .textBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(isContentFocused
+                                    ? Color.accentColor
+                                    : Color(nsColor: .separatorColor),
+                                    lineWidth: isContentFocused ? 2.5 : 1)
+                    }
+                    .animation(.easeInOut(duration: 0.15), value: isContentFocused)
+            }
         }
+        .padding(10)
+        .background(Color.accentColor.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
