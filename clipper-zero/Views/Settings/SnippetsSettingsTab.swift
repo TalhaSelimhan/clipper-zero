@@ -9,6 +9,7 @@ struct SnippetsSettingsTab: View {
     @State private var expandedSnippetID: UUID?
     @State private var scrollTarget: UUID?
     @FocusState private var focusedField: SnippetField?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     enum SnippetField: Hashable {
         case title(UUID)
@@ -57,18 +58,19 @@ struct SnippetsSettingsTab: View {
                                         },
                                         onDelete: { deleteSnippet(snippet) }
                                     )
-                                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+                                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
                                     .id(snippet.id)
                                 } else {
-                                    SnippetCollapsedRow(snippet: snippet)
-                                        .contentShape(Rectangle())
-                                        .onTapGesture {
-                                            withAnimation {
-                                                expandedSnippetID = snippet.id
-                                            }
+                                    Button {
+                                        withAnimation {
+                                            expandedSnippetID = snippet.id
                                         }
-                                        .transition(.opacity)
-                                        .id(snippet.id)
+                                    } label: {
+                                        SnippetCollapsedRow(snippet: snippet)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .transition(.opacity)
+                                    .id(snippet.id)
                                 }
                             }
                         }
@@ -78,7 +80,8 @@ struct SnippetsSettingsTab: View {
                 .onChange(of: scrollTarget) { _, newValue in
                     guard let id = newValue else { return }
                     scrollTarget = nil
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(100))
                         withAnimation(.easeInOut(duration: 0.3)) {
                             proxy.scrollTo(id, anchor: .bottom)
                         }
@@ -117,7 +120,9 @@ struct SnippetsSettingsTab: View {
         try? modelContext.save()
         expandedSnippetID = snippet.id
         scrollTarget = snippet.id
-        focusedField = .title(snippet.id)
+        Task { @MainActor in
+            focusedField = .title(snippet.id)
+        }
     }
 
     private func deleteSnippet(_ snippet: SnippetItem) {
@@ -149,7 +154,7 @@ struct SnippetCollapsedRow: View {
             }
             Spacer()
             Image(systemName: "chevron.right")
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.tertiary)
         }
     }
@@ -176,13 +181,19 @@ struct SnippetExpandedEditor: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header — tappable to collapse
             HStack {
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(Color.accentColor)
+                Button(action: onCollapse) {
+                    HStack {
+                        Image(systemName: "chevron.down")
+                            .font(.caption)
+                            .foregroundStyle(Color.accentColor)
 
-                Text(snippet.name.isEmpty ? "New Snippet" : snippet.name)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
+                        Text(snippet.name.isEmpty ? "New Snippet" : snippet.name)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
 
                 Spacer()
 
@@ -211,14 +222,12 @@ struct SnippetExpandedEditor: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Delete snippet")
             }
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onCollapse)
             .padding(.bottom, 10)
 
             // Title field
             VStack(alignment: .leading, spacing: 4) {
                 Text("TITLE")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .tracking(0.5)
                 TextField("Snippet name", text: $snippet.name)
@@ -230,7 +239,7 @@ struct SnippetExpandedEditor: View {
             // Content field
             VStack(alignment: .leading, spacing: 4) {
                 Text("CONTENT")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .tracking(0.5)
                 TextEditor(text: $snippet.value)
@@ -241,13 +250,13 @@ struct SnippetExpandedEditor: View {
                     .padding(4)
                     .background(Color(nsColor: .textBackgroundColor))
                     .clipShape(RoundedRectangle(cornerRadius: 5))
-                    .overlay(
+                    .overlay {
                         RoundedRectangle(cornerRadius: 5)
                             .stroke(isContentFocused
                                     ? Color.accentColor
                                     : Color(nsColor: .separatorColor),
                                     lineWidth: isContentFocused ? 2.5 : 1)
-                    )
+                    }
                     .animation(.easeInOut(duration: 0.15), value: isContentFocused)
             }
         }
