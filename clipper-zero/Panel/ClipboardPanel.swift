@@ -272,7 +272,7 @@ struct ClipboardPanel: View {
             if clips.count < filteredClips.count {
                 Color.clear
                     .frame(height: 1)
-                    .onAppear {
+                    .task(id: displayLimit) {
                         displayLimit = min(displayLimit + 50, filteredClips.count)
                     }
             }
@@ -424,11 +424,15 @@ struct ClipboardPanel: View {
 
     private func moveSelection(by delta: Int) {
         guard currentItemCount > 0 else { return }
-        selectedIndex = max(0, min(currentItemCount - 1, selectedIndex + delta))
 
-        if activeSegment == .clips && searchText.isEmpty && selectedIndex >= displayLimit - 5 {
-            displayLimit = min(displayLimit + 50, filteredClips.count)
+        if activeSegment == .clips && searchText.isEmpty {
+            let target = selectedIndex + delta
+            if target >= displayLimit - 5 {
+                displayLimit = min(displayLimit + 50, filteredClips.count)
+            }
         }
+
+        selectedIndex = max(0, min(currentItemCount - 1, selectedIndex + delta))
     }
 
     private var selectedItem: SearchResult? {
