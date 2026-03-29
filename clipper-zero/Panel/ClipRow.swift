@@ -53,7 +53,7 @@ struct ClipRow: View {
                         .frame(maxHeight: 24)
                 }
             default:
-                Text(clip.plainText ?? "No preview")
+                Text(clip.plainText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "No preview")
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .font(.body)

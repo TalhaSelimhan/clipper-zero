@@ -186,7 +186,7 @@ struct MenuBarClipRow: View {
                     .foregroundStyle(clip.contentType.badgeColor)
                     .frame(width: 16)
 
-                Text(clip.plainText ?? clip.contentType.badge)
+                Text(clip.plainText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? clip.contentType.badge)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .font(.subheadline)
