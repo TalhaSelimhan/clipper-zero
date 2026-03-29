@@ -69,5 +69,7 @@ fastlane/test_output
 .claude/
 .superpowers/
 skills-lock.json
+CLAUDE.md
+CLAUDE.local.md
 
 # Documentation (docs/ not ignored — used for GitHub Pages appcast hosting)
