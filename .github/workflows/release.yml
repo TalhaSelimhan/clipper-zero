@@ -334,12 +334,11 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "Clipper Zero ${{ steps.version.outputs.version }}"
           body: |
-            ## Clipper Zero ${{ steps.version.outputs.version }}
-
-            ### Installation
+            ## Installation
             1. Download `${{ env.DMG_NAME }}` below
             2. Open the DMG and drag Clipper Zero to Applications
             3. Existing users will be notified automatically via in-app updates
+          generate_release_notes: true
           files: ${{ env.DMG_PATH }}
           draft: false
           prerelease: false
