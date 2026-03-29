@@ -58,7 +58,10 @@ final class ClipboardMonitor {
         guard let content else { return }
 
         // If a clip with the same text already exists, move it to the top instead of duplicating
-        if let plainText, let existing = findExistingClip(plainText: plainText, in: context) {
+        // Skip dedup for file clips — plainText is not unique enough (e.g., "3 files")
+        if contentType != .file,
+           let plainText,
+           let existing = findExistingClip(plainText: plainText, contentType: contentType, in: context) {
             existing.createdAt = .now
             try? context.save()
             return
@@ -87,8 +90,8 @@ final class ClipboardMonitor {
         }
     }
 
-    private func findExistingClip(plainText: String, in context: ModelContext) -> ClipItem? {
-        let predicate = #Predicate<ClipItem> { $0.plainText == plainText }
+    private func findExistingClip(plainText: String, contentType: ClipContentType, in context: ModelContext) -> ClipItem? {
+        let predicate = #Predicate<ClipItem> { $0.plainText == plainText && $0.contentType == contentType }
         var descriptor = FetchDescriptor<ClipItem>(predicate: predicate)
         descriptor.fetchLimit = 1
         return try? context.fetch(descriptor).first
@@ -101,23 +104,30 @@ final class ClipboardMonitor {
             return (.color, colorDesc.data(using: .utf8), colorDesc)
         }
 
-        // Check for image
+        // Check for file URLs (before images — Finder puts both file URL and TIFF on the pasteboard)
+        if let fileURLs = pasteboard.readObjects(forClasses: [NSURL.self], options: [
+            .urlReadingFileURLsOnly: true
+        ]) as? [URL], !fileURLs.isEmpty {
+            let bookmarks = fileURLs.compactMap { url in
+                try? url.bookmarkData(
+                    options: .withSecurityScope,
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+            }
+            guard !bookmarks.isEmpty else { return (.text, nil, nil) }
+            let encoded = (try? JSONEncoder().encode(bookmarks)) ?? Data()
+            let plainText = fileURLs.count == 1
+                ? fileURLs[0].lastPathComponent
+                : "\(fileURLs.count) files"
+            return (.file, encoded, plainText)
+        }
+
+        // Check for image (in-app copies like screenshots, not file copies)
         if let imageType = pasteboard.availableType(from: [.tiff, .png]) {
             if let imageData = pasteboard.data(forType: imageType) {
                 return (.image, imageData, nil)
             }
-        }
-
-        // Check for file URLs
-        if let fileURLs = pasteboard.readObjects(forClasses: [NSURL.self], options: [
-            .urlReadingFileURLsOnly: true
-        ]) as? [URL], let firstURL = fileURLs.first {
-            let bookmarkData = try? firstURL.bookmarkData(
-                options: .withSecurityScope,
-                includingResourceValuesForKeys: nil,
-                relativeTo: nil
-            )
-            return (.file, bookmarkData ?? Data(), firstURL.lastPathComponent)
         }
 
         // Check for URL (link)

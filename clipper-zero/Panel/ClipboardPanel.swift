@@ -496,6 +496,7 @@ struct ClipboardPanel: View {
 
     private func deleteSelected() {
         guard let item = selectedItem else { return }
+        expandedPreview = false
         item.delete(from: modelContext)
         try? modelContext.save()
         if selectedIndex >= currentItemCount {
