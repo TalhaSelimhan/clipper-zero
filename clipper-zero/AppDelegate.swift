@@ -103,6 +103,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         completeOnboarding()
     }
 
+    // MARK: - Settings Activation
+
+    /// Temporarily switches to `.regular` activation policy so the Settings
+    /// window appears in front of other apps, then reverts to `.accessory`
+    /// once the window closes or is hidden.
+    func activateForSettings() {
+        guard !isActivatingForSettings else { return }
+        isActivatingForSettings = true
+
+        NSApp.setActivationPolicy(.regular)
+        if #available(macOS 14.0, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+        }
+
+        // The Settings scene window is created asynchronously by SwiftUI.
+        // Wait briefly, then find it and observe visibility to revert policy.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let settingsWindow = NSApp.windows.first(where: {
+                $0.identifier?.rawValue.localizedCaseInsensitiveContains("settings") == true
+                || $0.frameAutosaveName.localizedCaseInsensitiveContains("settings")
+            }) else {
+                self?.revertToAccessory()
+                return
+            }
+
+            settingsWindow.makeKeyAndOrderFront(nil)
+            self?.observeSettingsClose(settingsWindow)
+        }
+    }
+
+    private var isActivatingForSettings = false
+    private var settingsVisibilityObservation: NSKeyValueObservation?
+
+    private func observeSettingsClose(_ window: NSWindow) {
+        settingsVisibilityObservation?.invalidate()
+        // KVO on isVisible catches both close and orderOut (red X may hide
+        // SwiftUI Settings windows instead of closing them).
+        settingsVisibilityObservation = window.observe(\.isVisible, options: [.new]) { [weak self] _, change in
+            guard change.newValue == false else { return }
+            self?.settingsVisibilityObservation?.invalidate()
+            DispatchQueue.main.async {
+                self?.settingsVisibilityObservation = nil
+                self?.revertToAccessory()
+            }
+        }
+    }
+
+    private func revertToAccessory() {
+        isActivatingForSettings = false
+        NSApp.setActivationPolicy(.accessory)
+    }
+
     // MARK: - Services
 
     private func checkAccessibilityAndStart() {
