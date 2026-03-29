@@ -58,7 +58,10 @@ final class ClipboardMonitor {
         guard let content else { return }
 
         // If a clip with the same text already exists, move it to the top instead of duplicating
-        if let plainText, let existing = findExistingClip(plainText: plainText, in: context) {
+        // Skip dedup for file clips — plainText is not unique enough (e.g., "3 files")
+        if contentType != .file,
+           let plainText,
+           let existing = findExistingClip(plainText: plainText, contentType: contentType, in: context) {
             existing.createdAt = .now
             try? context.save()
             return
@@ -87,8 +90,8 @@ final class ClipboardMonitor {
         }
     }
 
-    private func findExistingClip(plainText: String, in context: ModelContext) -> ClipItem? {
-        let predicate = #Predicate<ClipItem> { $0.plainText == plainText }
+    private func findExistingClip(plainText: String, contentType: ClipContentType, in context: ModelContext) -> ClipItem? {
+        let predicate = #Predicate<ClipItem> { $0.plainText == plainText && $0.contentType == contentType }
         var descriptor = FetchDescriptor<ClipItem>(predicate: predicate)
         descriptor.fetchLimit = 1
         return try? context.fetch(descriptor).first

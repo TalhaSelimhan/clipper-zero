@@ -76,7 +76,7 @@ struct FilePreviewView: View {
 
                         if let typeAndSize = entry.metadata.typeAndSizeLabel {
                             Text(typeAndSize)
-                                .font(.caption2)
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -202,12 +202,13 @@ struct FilePreviewView: View {
                     guard entry.url.startAccessingSecurityScopedResource() else {
                         return (index, nil)
                     }
+                    defer { entry.url.stopAccessingSecurityScopedResource() }
                     let image = await ThumbnailService.generateThumbnail(for: entry.url, size: thumbnailSize)
-                    entry.url.stopAccessingSecurityScopedResource()
                     return (index, image)
                 }
             }
             for await (index, image) in group {
+                guard !Task.isCancelled, index < fileEntries.count else { continue }
                 if let image {
                     fileEntries[index].thumbnail = image
                 }
