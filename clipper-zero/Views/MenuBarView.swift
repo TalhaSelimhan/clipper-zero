@@ -48,7 +48,7 @@ struct MenuBarView: View {
             .buttonStyle(.plain)
             .simultaneousGesture(TapGesture().onEnded {
                 AppDelegate.shared.panelController.hidePanel()
-                NSApp.activate(ignoringOtherApps: true)
+                AppDelegate.shared.activateForSettings()
             })
         }
         .padding(.horizontal, 12)

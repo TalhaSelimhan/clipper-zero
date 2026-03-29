@@ -103,6 +103,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         completeOnboarding()
     }
 
+    // MARK: - Settings Activation
+
+    /// Temporarily switches to `.regular` activation policy so the Settings
+    /// window appears in front of other apps, then reverts to `.accessory`
+    /// once the window closes or is hidden.
+    func activateForSettings() {
+        NSApp.setActivationPolicy(.regular)
+        if #available(macOS 14.0, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+        }
+
+        // The Settings scene window is created asynchronously by SwiftUI.
+        // Wait briefly, then find it and observe visibility to revert policy.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let settingsWindow = NSApp.windows.first(where: {
+                $0.identifier?.rawValue.localizedCaseInsensitiveContains("settings") == true
+                || $0.frameAutosaveName.localizedCaseInsensitiveContains("settings")
+            }) else { return }
+
+            settingsWindow.makeKeyAndOrderFront(nil)
+            self?.observeSettingsClose(settingsWindow)
+        }
+    }
+
+    private var settingsVisibilityObservation: NSKeyValueObservation?
+
+    private func observeSettingsClose(_ window: NSWindow) {
+        settingsVisibilityObservation?.invalidate()
+        // KVO on isVisible catches both close and orderOut (red X may hide
+        // SwiftUI Settings windows instead of closing them).
+        settingsVisibilityObservation = window.observe(\.isVisible, options: [.new]) { [weak self] _, change in
+            guard change.newValue == false else { return }
+            DispatchQueue.main.async {
+                self?.settingsVisibilityObservation?.invalidate()
+                self?.settingsVisibilityObservation = nil
+                NSApp.setActivationPolicy(.accessory)
+            }
+        }
+    }
+
     // MARK: - Services
 
     private func checkAccessibilityAndStart() {
