@@ -87,7 +87,7 @@ struct ClipboardPanel: View {
         if !searchText.isEmpty {
             return searchResults.count
         }
-        return activeSegment == .clips ? filteredClips.count : filteredSnippets.count
+        return activeSegment == .clips ? visibleClips.count : filteredSnippets.count
     }
 
     var body: some View {
@@ -273,7 +273,7 @@ struct ClipboardPanel: View {
                 Color.clear
                     .frame(height: 1)
                     .onAppear {
-                        displayLimit += 50
+                        displayLimit = min(displayLimit + 50, filteredClips.count)
                     }
             }
         }
