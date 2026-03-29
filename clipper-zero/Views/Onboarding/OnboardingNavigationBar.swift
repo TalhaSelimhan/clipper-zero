@@ -36,15 +36,10 @@ struct OnboardingNavigationBar: View {
 
             Spacer()
 
-            if isLastPage {
-                Button("Get Started", action: onComplete)
-                    .buttonStyle(HoverScaleButtonStyle(accentColor: pages[currentPage].accentColor))
-                    .keyboardShortcut(.defaultAction)
-            } else {
-                Button("Next", action: onNext)
-                    .buttonStyle(HoverScaleButtonStyle(accentColor: pages[currentPage].accentColor))
-                    .keyboardShortcut(.defaultAction)
-            }
+            Button(isLastPage ? "Get Started" : "Next",
+                   action: isLastPage ? onComplete : onNext)
+                .buttonStyle(HoverScaleButtonStyle(accentColor: pages[currentPage].accentColor))
+                .keyboardShortcut(.defaultAction)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)

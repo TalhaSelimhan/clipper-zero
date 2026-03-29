@@ -38,6 +38,107 @@ struct ClipboardPanel: View {
         }
     }
 
+    private struct ShortcutHint: View {
+        let key: String
+        let label: String
+
+        var body: some View {
+            HStack(spacing: 4) {
+                Text(key)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
+                    .background(Color.primary.opacity(0.1))
+                    .clipShape(.rect(cornerRadius: 4))
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private struct SearchBar: View {
+        @Binding var searchText: String
+        var isSearchFocused: FocusState<Bool>.Binding
+
+        var body: some View {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                    .font(.title3)
+
+                TextField("Search...", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.title3)
+                    .focused(isSearchFocused)
+
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+    }
+
+    private struct InlineAddForm: View {
+        @Binding var snippetName: String
+        @Binding var snippetValue: String
+        var isNameFocused: FocusState<Bool>.Binding
+
+        var body: some View {
+            VStack(spacing: 6) {
+                TextField("Name", text: $snippetName)
+                    .textFieldStyle(.plain)
+                    .font(.body)
+                    .focused(isNameFocused)
+
+                TextField("Value", text: $snippetValue)
+                    .textFieldStyle(.plain)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.accentColor.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    private struct FooterBar: View {
+        let activeSegment: PanelSegment
+        let searchText: String
+        let countText: String
+
+        var body: some View {
+            HStack(spacing: 16) {
+                ShortcutHint(key: "↑↓", label: "Navigate")
+                ShortcutHint(key: "←→", label: "Switch")
+                ShortcutHint(key: "↵", label: "Paste")
+                if activeSegment == .snippets && searchText.isEmpty {
+                    ShortcutHint(key: "⌘N", label: "New")
+                } else {
+                    ShortcutHint(key: "⌘F", label: "Pin")
+                }
+                ShortcutHint(key: "⇥", label: "Preview")
+                ShortcutHint(key: "⌘C", label: "Copy")
+                Spacer()
+                Text(countText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+    }
+
     // MARK: - Properties
 
     let onDismiss: () -> Void
@@ -92,12 +193,12 @@ struct ClipboardPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            searchBar
+            SearchBar(searchText: $searchText, isSearchFocused: $isSearchFocused)
             segmentPicker
             Divider()
             contentList
             Divider()
-            footerBar
+            FooterBar(activeSegment: activeSegment, searchText: searchText, countText: footerCountText)
         }
         .frame(width: PanelMetrics.width, height: PanelMetrics.height)
         .background(.ultraThinMaterial)
@@ -162,7 +263,7 @@ struct ClipboardPanel: View {
             if press.modifiers.contains(.command) && activeSegment == .snippets {
                 isAddingSnippet = true
                 isSearchFocused = false
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     isSnippetNameFocused = true
                 }
                 return .handled
@@ -189,33 +290,6 @@ struct ClipboardPanel: View {
         .onAppear {
             isSearchFocused = true
         }
-    }
-
-    // MARK: - Search Bar
-
-    private var searchBar: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-                .font(.title3)
-
-            TextField("Search...", text: $searchText)
-                .textFieldStyle(.plain)
-                .font(.title3)
-                .focused($isSearchFocused)
-
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
     }
 
     // MARK: - Segment Picker
@@ -249,24 +323,27 @@ struct ClipboardPanel: View {
     private func clipList(_ clips: [ClipItem]) -> some View {
         ScrollList(selectedIndex: selectedIndex) {
             ForEach(Array(clips.enumerated()), id: \.element.id) { index, clip in
-                ClipRow(
-                    clip: clip,
-                    isSelected: index == selectedIndex,
-                    isExpanded: index == selectedIndex && expandedPreview
-                )
+                Button {
+                    selectedIndex = index
+                } label: {
+                    ClipRow(
+                        clip: clip,
+                        isSelected: index == selectedIndex,
+                        isExpanded: index == selectedIndex && expandedPreview
+                    )
+                }
                 .id(index)
-                .accessibilityAddTraits(.isButton)
+                .buttonStyle(.plain)
                 .accessibilityAction {
                     selectedIndex = index
                     pasteSelected()
                 }
-                .onTapGesture(count: 2) {
-                    selectedIndex = index
-                    pasteSelected()
-                }
-                .onTapGesture {
-                    selectedIndex = index
-                }
+                .simultaneousGesture(
+                    TapGesture(count: 2).onEnded {
+                        selectedIndex = index
+                        pasteSelected()
+                    }
+                )
             }
 
             if clips.count < filteredClips.count {
@@ -284,27 +361,30 @@ struct ClipboardPanel: View {
     private func snippetList(_ snippets: [SnippetItem]) -> some View {
         ScrollList(selectedIndex: selectedIndex) {
             if isAddingSnippet {
-                inlineAddForm
+                InlineAddForm(snippetName: $newSnippetName, snippetValue: $newSnippetValue, isNameFocused: $isSnippetNameFocused)
             }
 
             ForEach(Array(snippets.enumerated()), id: \.element.id) { index, snippet in
-                SnippetRow(
-                    snippet: snippet,
-                    isSelected: index == selectedIndex
-                )
+                Button {
+                    selectedIndex = index
+                } label: {
+                    SnippetRow(
+                        snippet: snippet,
+                        isSelected: index == selectedIndex
+                    )
+                }
                 .id(index)
-                .accessibilityAddTraits(.isButton)
+                .buttonStyle(.plain)
                 .accessibilityAction {
                     selectedIndex = index
                     pasteSelected()
                 }
-                .onTapGesture(count: 2) {
-                    selectedIndex = index
-                    pasteSelected()
-                }
-                .onTapGesture {
-                    selectedIndex = index
-                }
+                .simultaneousGesture(
+                    TapGesture(count: 2).onEnded {
+                        selectedIndex = index
+                        pasteSelected()
+                    }
+                )
             }
         }
     }
@@ -315,80 +395,42 @@ struct ClipboardPanel: View {
         let results = searchResults
         return ScrollList(selectedIndex: selectedIndex) {
             ForEach(Array(results.enumerated()), id: \.element.id) { index, result in
-                Group {
-                    switch result {
-                    case .clip(let clip):
-                        ClipRow(
-                            clip: clip,
-                            isSelected: index == selectedIndex,
-                            isExpanded: index == selectedIndex && expandedPreview
-                        )
-                    case .snippet(let snippet):
-                        SnippetRow(
-                            snippet: snippet,
-                            isSelected: index == selectedIndex
-                        )
+                Button {
+                    selectedIndex = index
+                } label: {
+                    Group {
+                        switch result {
+                        case .clip(let clip):
+                            ClipRow(
+                                clip: clip,
+                                isSelected: index == selectedIndex,
+                                isExpanded: index == selectedIndex && expandedPreview
+                            )
+                        case .snippet(let snippet):
+                            SnippetRow(
+                                snippet: snippet,
+                                isSelected: index == selectedIndex
+                            )
+                        }
                     }
                 }
                 .id(index)
-                .accessibilityAddTraits(.isButton)
+                .buttonStyle(.plain)
                 .accessibilityAction {
                     selectedIndex = index
                     pasteSelected()
                 }
-                .onTapGesture(count: 2) {
-                    selectedIndex = index
-                    pasteSelected()
-                }
-                .onTapGesture {
-                    selectedIndex = index
-                }
+                .simultaneousGesture(
+                    TapGesture(count: 2).onEnded {
+                        selectedIndex = index
+                        pasteSelected()
+                    }
+                )
             }
         }
-    }
-
-    // MARK: - Inline Add Form
-
-    private var inlineAddForm: some View {
-        VStack(spacing: 6) {
-            TextField("Name", text: $newSnippetName)
-                .textFieldStyle(.plain)
-                .font(.body)
-                .focused($isSnippetNameFocused)
-
-            TextField("Value", text: $newSnippetValue)
-                .textFieldStyle(.plain)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.accentColor.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     // MARK: - Footer
-
-    private var footerBar: some View {
-        HStack(spacing: 16) {
-            shortcutHint("↑↓", "Navigate")
-            shortcutHint("←→", "Switch")
-            shortcutHint("↵", "Paste")
-            if activeSegment == .snippets && searchText.isEmpty {
-                shortcutHint("⌘N", "New")
-            } else {
-                shortcutHint("⌘F", "Pin")
-            }
-            shortcutHint("⇥", "Preview")
-            shortcutHint("⌘C", "Copy")
-            Spacer()
-            Text(footerCountText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-    }
 
     private var footerCountText: String {
         if !searchText.isEmpty {
@@ -403,21 +445,6 @@ struct ClipboardPanel: View {
             return "\(total) clips"
         }
         return "\(currentItemCount) snippets"
-    }
-
-    private func shortcutHint(_ key: String, _ label: String) -> some View {
-        HStack(spacing: 4) {
-            Text(key)
-                .font(.caption)
-                .fontWeight(.semibold)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
-                .background(Color.primary.opacity(0.1))
-                .clipShape(.rect(cornerRadius: 4))
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
     }
 
     // MARK: - Actions

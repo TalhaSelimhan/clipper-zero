@@ -194,7 +194,7 @@ struct MenuBarClipRow: View {
                 Spacer()
 
                 Text(clip.createdAt.relativeDescription)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.tertiary)
             }
         }

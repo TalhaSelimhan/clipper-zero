@@ -110,7 +110,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             promptLaunchAtLoginIfNeeded()
             startServices()
         } else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1))
                 AccessibilityManager.promptForAccessibility()
             }
 

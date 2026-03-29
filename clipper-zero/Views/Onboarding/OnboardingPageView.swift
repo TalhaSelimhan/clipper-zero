@@ -9,7 +9,7 @@ struct OnboardingPageView: View {
         HStack(spacing: 16) {
             // Icon badge
             Image(systemName: page.iconName)
-                .font(.system(size: 24, weight: .semibold))
+                .font(.title2.weight(.semibold))
                 .foregroundStyle(page.accentColor)
                 .frame(width: 44, height: 44)
                 .background(
@@ -22,7 +22,7 @@ struct OnboardingPageView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(page.title)
                     .font(.title3)
-                    .fontWeight(.bold)
+                    .bold()
                     .foregroundStyle(.white)
                     .staggeredEntrance(isVisible: elementsVisible, delay: 0.08)
 
@@ -65,7 +65,8 @@ struct OnboardingPageView: View {
         HStack(spacing: 4) {
             ForEach(Array(shortcut), id: \.self) { char in
                 Text(String(char))
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(.caption.weight(.medium))
+                    .fontDesign(.rounded)
                     .foregroundStyle(.white.opacity(0.8))
                     .frame(minWidth: 24, minHeight: 24)
                     .background(
