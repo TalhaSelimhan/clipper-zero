@@ -46,6 +46,7 @@ struct ClipboardPanel: View {
     @State private var searchText = ""
     @State private var selectedIndex = 0
     @State private var expandedPreview = false
+    @State private var displayLimit = 50
     @State private var activeSegment: PanelSegment = .clips
     @State private var isAddingSnippet = false
     @State private var newSnippetName = ""
@@ -66,6 +67,10 @@ struct ClipboardPanel: View {
         }
     }
 
+    private var visibleClips: [ClipItem] {
+        Array(filteredClips.prefix(displayLimit))
+    }
+
     private var filteredSnippets: [SnippetItem] {
         if searchText.isEmpty { return allSnippets }
         return allSnippets.filter { snippet in
@@ -82,7 +87,7 @@ struct ClipboardPanel: View {
         if !searchText.isEmpty {
             return searchResults.count
         }
-        return activeSegment == .clips ? filteredClips.count : filteredSnippets.count
+        return activeSegment == .clips ? visibleClips.count : filteredSnippets.count
     }
 
     var body: some View {
@@ -174,10 +179,12 @@ struct ClipboardPanel: View {
         .onChange(of: searchText) {
             selectedIndex = 0
             expandedPreview = false
+            displayLimit = 50
         }
         .onChange(of: activeSegment) {
             selectedIndex = 0
             expandedPreview = false
+            displayLimit = 50
         }
         .onAppear {
             isSearchFocused = true
@@ -231,7 +238,7 @@ struct ClipboardPanel: View {
         if !searchText.isEmpty {
             unifiedSearchList
         } else if activeSegment == .clips {
-            clipList(filteredClips)
+            clipList(visibleClips)
         } else {
             snippetList(filteredSnippets)
         }
@@ -260,6 +267,14 @@ struct ClipboardPanel: View {
                 .onTapGesture {
                     selectedIndex = index
                 }
+            }
+
+            if clips.count < filteredClips.count {
+                Color.clear
+                    .frame(height: 1)
+                    .task(id: displayLimit) {
+                        displayLimit = min(displayLimit + 50, filteredClips.count)
+                    }
             }
         }
     }
@@ -380,7 +395,12 @@ struct ClipboardPanel: View {
             return "\(currentItemCount) results"
         }
         if activeSegment == .clips {
-            return "\(currentItemCount) clips"
+            let visible = visibleClips.count
+            let total = filteredClips.count
+            if visible < total {
+                return "\(visible) of \(total) clips"
+            }
+            return "\(total) clips"
         }
         return "\(currentItemCount) snippets"
     }
@@ -404,6 +424,14 @@ struct ClipboardPanel: View {
 
     private func moveSelection(by delta: Int) {
         guard currentItemCount > 0 else { return }
+
+        if activeSegment == .clips && searchText.isEmpty {
+            let target = selectedIndex + delta
+            if target >= displayLimit - 5 {
+                displayLimit = min(displayLimit + 50, filteredClips.count)
+            }
+        }
+
         selectedIndex = max(0, min(currentItemCount - 1, selectedIndex + delta))
     }
 
