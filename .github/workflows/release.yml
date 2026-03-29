@@ -193,23 +193,44 @@ jobs:
           xcrun stapler staple "$APP_PATH"
 
       # ── Create DMG ────────────────────────────────────────────
+      - name: Install create-dmg
+        run: brew install create-dmg
+
       - name: Create DMG
         run: |
           APP_PATH="$RUNNER_TEMP/export/$PRODUCT_NAME.app"
           DMG_NAME="ClipperZero-${{ steps.version.outputs.version }}.dmg"
           DMG_PATH="$RUNNER_TEMP/$DMG_NAME"
 
-          # Stage DMG contents
-          DMG_TEMP="$RUNNER_TEMP/dmg-staging"
-          mkdir -p "$DMG_TEMP"
-          cp -R "$APP_PATH" "$DMG_TEMP/"
-          ln -s /Applications "$DMG_TEMP/Applications"
+          # Extract volume icon from the app bundle
+          VOLICON="$RUNNER_TEMP/VolumeIcon.icns"
+          cp "$APP_PATH/Contents/Resources/AppIcon.icns" "$VOLICON" 2>/dev/null || true
 
-          hdiutil create \
-            -volname "$APP_DISPLAY_NAME" \
-            -srcfolder "$DMG_TEMP" \
-            -ov -format UDZO \
-            "$DMG_PATH"
+          # Build styled DMG with proper layout
+          ARGS=(
+            --volname "$APP_DISPLAY_NAME"
+            --background "resources/dmg-background@2x.png"
+            --window-pos 200 120
+            --window-size 660 400
+            --icon-size 128
+            --icon "$PRODUCT_NAME.app" 180 170
+            --app-drop-link 480 170
+            --hide-extension "$PRODUCT_NAME.app"
+            --no-internet-enable
+          )
+
+          # Use app icon as volume icon if available
+          if [ -f "$VOLICON" ]; then
+            ARGS+=(--volicon "$VOLICON")
+          fi
+
+          create-dmg "${ARGS[@]}" "$DMG_PATH" "$RUNNER_TEMP/export/"
+
+          # create-dmg exits 2 if it couldn't set the custom icon (non-fatal)
+          if [ ! -f "$DMG_PATH" ]; then
+            echo "::error::DMG creation failed"
+            exit 1
+          fi
 
           # Notarize the DMG
           xcrun notarytool submit "$DMG_PATH" \
