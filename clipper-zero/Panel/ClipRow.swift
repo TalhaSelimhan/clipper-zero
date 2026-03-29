@@ -115,6 +115,8 @@ struct ClipRow: View {
                             .font(.body.monospaced())
                     }
                 }
+            case .file:
+                FilePreviewView(clip: clip)
             default:
                 Text(clip.plainText ?? "No content")
                     .font(.body.monospaced())

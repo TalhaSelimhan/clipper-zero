@@ -101,23 +101,30 @@ final class ClipboardMonitor {
             return (.color, colorDesc.data(using: .utf8), colorDesc)
         }
 
-        // Check for image
+        // Check for file URLs (before images — Finder puts both file URL and TIFF on the pasteboard)
+        if let fileURLs = pasteboard.readObjects(forClasses: [NSURL.self], options: [
+            .urlReadingFileURLsOnly: true
+        ]) as? [URL], !fileURLs.isEmpty {
+            let bookmarks = fileURLs.compactMap { url in
+                try? url.bookmarkData(
+                    options: .withSecurityScope,
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+            }
+            guard !bookmarks.isEmpty else { return (.text, nil, nil) }
+            let encoded = (try? JSONEncoder().encode(bookmarks)) ?? Data()
+            let plainText = fileURLs.count == 1
+                ? fileURLs[0].lastPathComponent
+                : "\(fileURLs.count) files"
+            return (.file, encoded, plainText)
+        }
+
+        // Check for image (in-app copies like screenshots, not file copies)
         if let imageType = pasteboard.availableType(from: [.tiff, .png]) {
             if let imageData = pasteboard.data(forType: imageType) {
                 return (.image, imageData, nil)
             }
-        }
-
-        // Check for file URLs
-        if let fileURLs = pasteboard.readObjects(forClasses: [NSURL.self], options: [
-            .urlReadingFileURLsOnly: true
-        ]) as? [URL], let firstURL = fileURLs.first {
-            let bookmarkData = try? firstURL.bookmarkData(
-                options: .withSecurityScope,
-                includingResourceValuesForKeys: nil,
-                relativeTo: nil
-            )
-            return (.file, bookmarkData ?? Data(), firstURL.lastPathComponent)
         }
 
         // Check for URL (link)

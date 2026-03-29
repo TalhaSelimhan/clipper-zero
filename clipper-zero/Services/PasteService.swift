@@ -69,15 +69,23 @@ final class PasteService {
         case .image:
             pasteboard.setData(clip.content, forType: .tiff)
         case .file:
-            // Resolve bookmark data back to URL
-            var isStale = false
-            if let url = try? URL(
-                resolvingBookmarkData: clip.content,
-                options: .withSecurityScope,
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            ) {
-                pasteboard.writeObjects([url as NSURL])
+            let bookmarks: [Data]
+            if let decoded = try? JSONDecoder().decode([Data].self, from: clip.content) {
+                bookmarks = decoded
+            } else {
+                bookmarks = [clip.content] // Legacy single bookmark
+            }
+            let urls: [NSURL] = bookmarks.compactMap { bookmark in
+                var isStale = false
+                return try? URL(
+                    resolvingBookmarkData: bookmark,
+                    options: .withSecurityScope,
+                    relativeTo: nil,
+                    bookmarkDataIsStale: &isStale
+                ) as NSURL
+            }
+            if !urls.isEmpty {
+                pasteboard.writeObjects(urls)
             }
         case .color:
             if let text = String(data: clip.content, encoding: .utf8) {
