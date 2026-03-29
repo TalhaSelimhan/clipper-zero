@@ -22,7 +22,7 @@ final class ClipItem {
     var isPinned: Bool
     @Attribute(.externalStorage) var previewData: Data?
 
-    @Relationship(deleteRule: .nullify) var collections: [ClipCollection]?
+    var collections: [ClipCollection]?
 
     init(
         content: Data,
