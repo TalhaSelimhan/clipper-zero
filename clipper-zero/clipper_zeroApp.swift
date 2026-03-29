@@ -27,7 +27,11 @@ struct ClipperZeroApp: App {
                 cloudKitDatabase: .automatic
             )
 
-            modelContainer = try ModelContainer(for: schema, configurations: [localConfig, cloudConfig])
+            modelContainer = try ModelContainer(
+                for: schema,
+                migrationPlan: ClipperZeroMigrationPlan.self,
+                configurations: [localConfig, cloudConfig]
+            )
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }

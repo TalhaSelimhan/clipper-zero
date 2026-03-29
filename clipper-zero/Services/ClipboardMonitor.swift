@@ -3,6 +3,7 @@ import SwiftData
 import Foundation
 import UniformTypeIdentifiers
 
+@MainActor
 final class ClipboardMonitor {
     private let modelContainer: ModelContainer
     private var timer: Timer?
@@ -15,7 +16,9 @@ final class ClipboardMonitor {
 
     func start() {
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            self?.checkPasteboard()
+            MainActor.assumeIsolated {
+                self?.checkPasteboard()
+            }
         }
     }
 
@@ -48,7 +51,6 @@ final class ClipboardMonitor {
         return !results.isEmpty
     }
 
-    @MainActor
     private func captureClip(from pasteboard: NSPasteboard) {
         let context = modelContainer.mainContext
 
