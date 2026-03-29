@@ -77,6 +77,12 @@ struct SnippetsSettingsTab: View {
                     }
                 }
                 .formStyle(.grouped)
+                .onChange(of: expandedSnippetID) { _, newValue in
+                    guard let id = newValue else { return }
+                    Task { @MainActor in
+                        focusedField = .title(id)
+                    }
+                }
                 .onChange(of: scrollTarget) { _, newValue in
                     guard let id = newValue else { return }
                     scrollTarget = nil
@@ -120,9 +126,6 @@ struct SnippetsSettingsTab: View {
         try? modelContext.save()
         expandedSnippetID = snippet.id
         scrollTarget = snippet.id
-        Task { @MainActor in
-            focusedField = .title(snippet.id)
-        }
     }
 
     private func deleteSnippet(_ snippet: SnippetItem) {
