@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct MenuBarView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
     @Query(sort: \ClipItem.createdAt, order: .reverse)
@@ -33,6 +34,10 @@ struct MenuBarView: View {
             footer
         }
         .frame(width: 320)
+        .onKeyPress(.escape) {
+            dismiss()
+            return .handled
+        }
     }
 
     // MARK: - Header
@@ -47,6 +52,7 @@ struct MenuBarView: View {
             }
             .buttonStyle(.plain)
             .simultaneousGesture(TapGesture().onEnded {
+                dismiss()
                 AppDelegate.shared.panelController.hidePanel()
                 AppDelegate.shared.activateForSettings()
             })
