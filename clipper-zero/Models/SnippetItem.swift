@@ -9,8 +9,8 @@ final class SnippetItem {
     var createdAt: Date = Date()
     var sortOrder: Int = 0
 
-    init(name: String, value: String, sortOrder: Int = 0) {
-        self.id = UUID()
+    init(id: UUID = UUID(), name: String, value: String, sortOrder: Int = 0) {
+        self.id = id
         self.name = name
         self.value = value
         self.createdAt = Date()

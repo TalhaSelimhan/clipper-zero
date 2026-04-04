@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private(set) var clipboardMonitor: ClipboardMonitor!
     private(set) var panelController: PanelController!
     private(set) var hotkeyManager: GlobalHotkeyManager!
+    private(set) var cleanupService: SecureItemCleanupService!
 
     private var onboardingWindow: NSWindow?
     private var onboardingCompleted = false
@@ -30,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func setup() {
         clipboardMonitor = ClipboardMonitor(modelContainer: modelContainer)
         panelController = PanelController(modelContainer: modelContainer)
+        cleanupService = SecureItemCleanupService(modelContainer: modelContainer)
         hotkeyManager = GlobalHotkeyManager { [weak self] in
             self?.panelController.togglePanel()
         }
@@ -194,6 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func startServices() {
         clipboardMonitor.start()
+        cleanupService.start()
         hotkeyManager.register()
     }
 }

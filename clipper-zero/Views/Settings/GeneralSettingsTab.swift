@@ -7,6 +7,8 @@ struct GeneralSettingsTab: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("historyLimit") private var historyLimit = 1000
     @AppStorage("playSoundOnCopy") private var playSoundOnCopy = false
+    @AppStorage("autoDetectSensitive") private var autoDetectSensitive = true
+    @AppStorage("secureItemTTL") private var secureItemTTL = 86400
 
     var body: some View {
         Form {
@@ -34,6 +36,17 @@ struct GeneralSettingsTab: View {
                     Text("History limit")
                     Spacer()
                     Stepper("\(historyLimit)", value: $historyLimit, in: 100...10000, step: 100)
+                }
+            }
+
+            Section("Security") {
+                Toggle("Auto-detect sensitive content", isOn: $autoDetectSensitive)
+
+                Picker("Secure item expiration", selection: $secureItemTTL) {
+                    Text("1 hour").tag(3600)
+                    Text("1 day").tag(86400)
+                    Text("1 week").tag(604800)
+                    Text("30 days").tag(2592000)
                 }
             }
 

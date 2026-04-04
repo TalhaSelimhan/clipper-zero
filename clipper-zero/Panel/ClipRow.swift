@@ -25,38 +25,69 @@ struct ClipRow: View {
         }
         .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .if(clip.isSecure) { view in
+            view.accessibilityLabel("Secure \(clip.contentType.badge) item")
+        }
     }
 
     // MARK: - Type Badge
 
     private var typeBadge: some View {
-        Text(clip.contentType.badge)
-            .font(.caption)
-            .fontWeight(.semibold)
-            .foregroundStyle(.white)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(clip.contentType.badgeColor)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+        HStack(spacing: 4) {
+            if clip.isSecure {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.white)
+            }
+            Text(clip.contentType.badge)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.white)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(clip.contentType.badgeColor)
+        .clipShape(RoundedRectangle(cornerRadius: 4))
     }
 
     // MARK: - Content Preview
 
     private var contentPreview: some View {
         Group {
-            switch clip.contentType {
-            case .image:
-                if let nsImage = NSImage(data: clip.previewData ?? clip.content) {
-                    Image(nsImage: nsImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
+            if clip.isSecure {
+                switch clip.contentType {
+                case .image:
+                    Image(systemName: "lock.fill")
+                        .foregroundStyle(.secondary)
                         .frame(maxHeight: 24)
+                case .file:
+                    Text(clip.plainText ?? "Secure file")
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                default:
+                    Text(clip.plainText ?? "Secure content")
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
                 }
-            default:
-                Text(clip.plainText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "No preview")
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .font(.body)
+            } else {
+                switch clip.contentType {
+                case .image:
+                    if let nsImage = NSImage(data: clip.previewData ?? clip.content) {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxHeight: 24)
+                    }
+                default:
+                    Text(clip.plainText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "No preview")
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .font(.body)
+                }
             }
         }
     }
@@ -71,7 +102,11 @@ struct ClipRow: View {
                     .foregroundStyle(.orange)
             }
 
-            if let appName = clip.sourceAppName {
+            if clip.isSecure, let label = clip.secureLabel {
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if let appName = clip.sourceAppName {
                 Text(appName)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -87,46 +122,74 @@ struct ClipRow: View {
 
     private var expandedPreview: some View {
         Group {
-            switch clip.contentType {
-            case .image:
-                if let nsImage = NSImage(data: clip.content) {
-                    Image(nsImage: nsImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxHeight: 200)
+            if clip.isSecure {
+                HStack {
+                    Spacer()
+                    VStack(spacing: 4) {
+                        Image(systemName: "lock.fill")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                        Text("Secure content")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 12)
+            } else {
+                switch clip.contentType {
+                case .image:
+                    if let nsImage = NSImage(data: clip.content) {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxHeight: 200)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                    }
+                case .link:
+                    if let urlString = clip.plainText {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(urlString)
+                                .font(.body)
+                                .foregroundStyle(.blue)
+                                .underline()
+                        }
+                    }
+                case .color:
+                    if let colorDesc = clip.plainText {
+                        HStack(spacing: 8) {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.gray)
+                                .frame(width: 32, height: 32)
+                            Text(colorDesc)
+                                .font(.body.monospaced())
+                        }
+                    }
+                case .file:
+                    FilePreviewView(clip: clip)
+                default:
+                    Text(clip.plainText ?? "No content")
+                        .font(.body.monospaced())
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                        .background(Color.primary.opacity(0.05))
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
-            case .link:
-                if let urlString = clip.plainText {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(urlString)
-                            .font(.body)
-                            .foregroundStyle(.blue)
-                            .underline()
-                    }
-                }
-            case .color:
-                if let colorDesc = clip.plainText {
-                    HStack(spacing: 8) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.gray)
-                            .frame(width: 32, height: 32)
-                        Text(colorDesc)
-                            .font(.body.monospaced())
-                    }
-                }
-            case .file:
-                FilePreviewView(clip: clip)
-            default:
-                Text(clip.plainText ?? "No content")
-                    .font(.body.monospaced())
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-                    .background(Color.primary.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
             }
         }
     }
 }
 
+// MARK: - Conditional View Modifier
+
+private extension View {
+    @ViewBuilder
+    func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
+        if condition {
+            transform(self)
+        } else {
+            self
+        }
+    }
+}

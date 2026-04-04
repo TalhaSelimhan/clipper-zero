@@ -7,11 +7,11 @@ enum ModelContainerFactory {
         let oldSnippets = SnippetMigrationService.extractOldSnippetsIfNeeded()
 
         do {
-            let schema = Schema([ClipItem.self, ClipCollection.self, ExcludedApp.self, SnippetItem.self])
+            let schema = Schema([ClipItem.self, ClipCollection.self, ExcludedApp.self, SnippetItem.self, SecureSnippetItem.self])
 
             let localConfig = ModelConfiguration(
                 "ClipperZero",
-                schema: Schema([ClipItem.self, ClipCollection.self, ExcludedApp.self]),
+                schema: Schema([ClipItem.self, ClipCollection.self, ExcludedApp.self, SecureSnippetItem.self]),
                 cloudKitDatabase: .none
             )
 

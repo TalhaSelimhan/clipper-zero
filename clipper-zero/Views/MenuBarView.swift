@@ -183,31 +183,66 @@ struct MenuBarClipRow: View {
     let clip: ClipItem
 
     var body: some View {
+        if clip.isSecure {
+            secureRow
+        } else {
+            normalRow
+        }
+    }
+
+    private var normalRow: some View {
         Button {
-            PasteService.shared.copyOnly(clip: clip)
+            Task { await PasteService.shared.copyOnly(clip: clip) }
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: clip.contentType.iconName)
-                    .font(.caption)
-                    .foregroundStyle(clip.contentType.badgeColor)
-                    .frame(width: 16)
-
-                Text(clip.plainText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? clip.contentType.badge)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .font(.subheadline)
-
-                Spacer()
-
-                Text(clip.createdAt.relativeDescription)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
+            rowContent
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
         .contentShape(Rectangle())
+    }
+
+    private var secureRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "lock.fill")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+
+            Text(clip.plainText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Secure item")
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Text("Open panel to copy")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+    }
+
+    private var rowContent: some View {
+        HStack(spacing: 8) {
+            Image(systemName: clip.contentType.iconName)
+                .font(.caption)
+                .foregroundStyle(clip.contentType.badgeColor)
+                .frame(width: 16)
+
+            Text(clip.plainText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? clip.contentType.badge)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .font(.subheadline)
+
+            Spacer()
+
+            Text(clip.createdAt.relativeDescription)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
     }
 }
 

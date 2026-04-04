@@ -13,6 +13,7 @@ enum ClipContentType: String, Codable, CaseIterable {
 @Model
 final class ClipItem {
     var id: UUID
+    // When isSecure == true, content is empty Data() — real content lives in encryptedContent.
     @Attribute(.externalStorage) var content: Data
     var contentType: ClipContentType
     var plainText: String?
@@ -21,6 +22,12 @@ final class ClipItem {
     var createdAt: Date
     var isPinned: Bool
     @Attribute(.externalStorage) var previewData: Data?
+
+    // Secure item fields
+    var isSecure: Bool = false
+    @Attribute(.externalStorage) var encryptedContent: Data?
+    var expiresAt: Date?
+    var secureLabel: String?
 
     var collections: [ClipCollection]?
 
@@ -31,7 +38,11 @@ final class ClipItem {
         sourceAppBundle: String? = nil,
         sourceAppName: String? = nil,
         isPinned: Bool = false,
-        previewData: Data? = nil
+        previewData: Data? = nil,
+        isSecure: Bool = false,
+        encryptedContent: Data? = nil,
+        expiresAt: Date? = nil,
+        secureLabel: String? = nil
     ) {
         self.id = UUID()
         self.content = content
@@ -42,5 +53,9 @@ final class ClipItem {
         self.createdAt = Date()
         self.isPinned = isPinned
         self.previewData = previewData
+        self.isSecure = isSecure
+        self.encryptedContent = encryptedContent
+        self.expiresAt = expiresAt
+        self.secureLabel = secureLabel
     }
 }

@@ -161,10 +161,14 @@ struct ClipboardPanel: View {
     @Query(sort: \SnippetItem.sortOrder)
     private var allSnippets: [SnippetItem]
 
+    @Query(sort: \SecureSnippetItem.sortOrder)
+    private var allSecureSnippets: [SecureSnippetItem]
+
     private var filteredClips: [ClipItem] {
         if searchText.isEmpty { return allClips }
         return allClips.filter { clip in
-            clip.plainText?.localizedStandardContains(searchText) ?? false
+            (clip.plainText?.localizedStandardContains(searchText) ?? false) ||
+            (clip.secureLabel?.localizedStandardContains(searchText) ?? false)
         }
     }
 
@@ -180,15 +184,36 @@ struct ClipboardPanel: View {
         }
     }
 
+    private var filteredSecureSnippets: [SecureSnippetItem] {
+        if searchText.isEmpty { return allSecureSnippets }
+        return allSecureSnippets.filter { snippet in
+            snippet.name.localizedStandardContains(searchText)
+        }
+    }
+
+    /// Merged snippet results sorted by sortOrder, deduped by id as safety net
+    private var mergedSnippetResults: [SearchResult] {
+        var seen = Set<String>()
+        let regular: [(Int, SearchResult)] = filteredSnippets.map { ($0.sortOrder, .snippet($0)) }
+        let secure: [(Int, SearchResult)] = filteredSecureSnippets.map { ($0.sortOrder, .secureSnippet($0)) }
+        return (regular + secure)
+            .sorted { $0.0 < $1.0 }
+            .compactMap { pair in
+                let result = pair.1
+                guard seen.insert(result.id).inserted else { return nil }
+                return result
+            }
+    }
+
     private var searchResults: [SearchResult] {
-        filteredSnippets.map { .snippet($0) } + filteredClips.map { .clip($0) }
+        mergedSnippetResults + filteredClips.map { .clip($0) }
     }
 
     private var currentItemCount: Int {
         if !searchText.isEmpty {
             return searchResults.count
         }
-        return activeSegment == .clips ? visibleClips.count : filteredSnippets.count
+        return activeSegment == .clips ? visibleClips.count : mergedSnippetResults.count
     }
 
     var body: some View {
@@ -277,6 +302,13 @@ struct ClipboardPanel: View {
             }
             return .ignored
         }
+        .onKeyPress(keys: [.init("l")], phases: .down) { press in
+            if press.modifiers.contains(.command) {
+                toggleSecure()
+                return .handled
+            }
+            return .ignored
+        }
         .onChange(of: searchText) {
             selectedIndex = 0
             expandedPreview = false
@@ -314,7 +346,7 @@ struct ClipboardPanel: View {
         } else if activeSegment == .clips {
             clipList(visibleClips)
         } else {
-            snippetList(filteredSnippets)
+            mergedSnippetList
         }
     }
 
@@ -334,6 +366,19 @@ struct ClipboardPanel: View {
                 }
                 .id(index)
                 .buttonStyle(.plain)
+                .contextMenu {
+                    if clip.isSecure {
+                        Button("Mark as Not Secure") {
+                            selectedIndex = index
+                            toggleSecureForClip(clip)
+                        }
+                    } else {
+                        Button("Mark as Secure") {
+                            selectedIndex = index
+                            toggleSecureForClip(clip)
+                        }
+                    }
+                }
                 .accessibilityAction {
                     selectedIndex = index
                     pasteSelected()
@@ -356,25 +401,48 @@ struct ClipboardPanel: View {
         }
     }
 
-    // MARK: - Snippet List
+    // MARK: - Merged Snippet List
 
-    private func snippetList(_ snippets: [SnippetItem]) -> some View {
-        ScrollList(selectedIndex: selectedIndex) {
+    private var mergedSnippetList: some View {
+        let results = mergedSnippetResults
+        return ScrollList(selectedIndex: selectedIndex) {
             if isAddingSnippet {
                 InlineAddForm(snippetName: $newSnippetName, snippetValue: $newSnippetValue, isNameFocused: $isSnippetNameFocused)
             }
 
-            ForEach(Array(snippets.enumerated()), id: \.element.id) { index, snippet in
+            ForEach(Array(results.enumerated()), id: \.element.id) { index, result in
                 Button {
                     selectedIndex = index
                 } label: {
-                    SnippetRow(
-                        snippet: snippet,
-                        isSelected: index == selectedIndex
-                    )
+                    Group {
+                        switch result {
+                        case .snippet(let snippet):
+                            SnippetRow(snippet: snippet, isSelected: index == selectedIndex)
+                        case .secureSnippet(let snippet):
+                            SecureSnippetRow(snippet: snippet, isSelected: index == selectedIndex)
+                        default:
+                            EmptyView()
+                        }
+                    }
                 }
                 .id(index)
                 .buttonStyle(.plain)
+                .contextMenu {
+                    switch result {
+                    case .snippet:
+                        Button("Mark as Secure") {
+                            selectedIndex = index
+                            toggleSecureForSearchResult(result)
+                        }
+                    case .secureSnippet:
+                        Button("Mark as Not Secure") {
+                            selectedIndex = index
+                            toggleSecureForSearchResult(result)
+                        }
+                    default:
+                        EmptyView()
+                    }
+                }
                 .accessibilityAction {
                     selectedIndex = index
                     pasteSelected()
@@ -411,11 +479,42 @@ struct ClipboardPanel: View {
                                 snippet: snippet,
                                 isSelected: index == selectedIndex
                             )
+                        case .secureSnippet(let snippet):
+                            SecureSnippetRow(
+                                snippet: snippet,
+                                isSelected: index == selectedIndex
+                            )
                         }
                     }
                 }
                 .id(index)
                 .buttonStyle(.plain)
+                .contextMenu {
+                    switch result {
+                    case .clip(let clip):
+                        if clip.isSecure {
+                            Button("Mark as Not Secure") {
+                                selectedIndex = index
+                                toggleSecureForClip(clip)
+                            }
+                        } else {
+                            Button("Mark as Secure") {
+                                selectedIndex = index
+                                toggleSecureForClip(clip)
+                            }
+                        }
+                    case .snippet:
+                        Button("Mark as Secure") {
+                            selectedIndex = index
+                            toggleSecureForSearchResult(result)
+                        }
+                    case .secureSnippet:
+                        Button("Mark as Not Secure") {
+                            selectedIndex = index
+                            toggleSecureForSearchResult(result)
+                        }
+                    }
+                }
                 .accessibilityAction {
                     selectedIndex = index
                     pasteSelected()
@@ -472,20 +571,20 @@ struct ClipboardPanel: View {
             guard selectedIndex < clips.count else { return nil }
             return .clip(clips[selectedIndex])
         } else {
-            let snippets = filteredSnippets
-            guard selectedIndex < snippets.count else { return nil }
-            return .snippet(snippets[selectedIndex])
+            let results = mergedSnippetResults
+            guard selectedIndex < results.count else { return nil }
+            return results[selectedIndex]
         }
     }
 
     private func pasteSelected() {
         guard let item = selectedItem else { return }
-        PasteService.shared.paste(item)
+        Task { await PasteService.shared.paste(item) }
     }
 
     private func copySelected() {
         guard let item = selectedItem else { return }
-        PasteService.shared.copyOnly(item)
+        Task { await PasteService.shared.copyOnly(item) }
     }
 
     private func togglePin() {
@@ -501,6 +600,93 @@ struct ClipboardPanel: View {
         try? modelContext.save()
         if selectedIndex >= currentItemCount {
             selectedIndex = max(0, currentItemCount - 1)
+        }
+    }
+
+    // MARK: - Secure Toggle
+
+    private func toggleSecure() {
+        guard let item = selectedItem else { return }
+        toggleSecureForSearchResult(item)
+    }
+
+    private func toggleSecureForSearchResult(_ result: SearchResult) {
+        switch result {
+        case .clip(let clip):
+            toggleSecureForClip(clip)
+        case .snippet(let snippet):
+            toggleSecureForSnippet(snippet)
+        case .secureSnippet(let secureSnippet):
+            toggleSecureForSecureSnippet(secureSnippet)
+        }
+    }
+
+    private func toggleSecureForClip(_ clip: ClipItem) {
+        Task {
+            if clip.isSecure {
+                // Unmark as secure — requires auth
+                guard await AuthenticationService.authenticate(reason: "Remove secure status") else { return }
+                guard let encrypted = clip.encryptedContent,
+                      let decrypted = try? EncryptionService.decrypt(encrypted) else { return }
+                clip.content = decrypted
+                clip.plainText = String(data: decrypted, encoding: .utf8) ?? clip.plainText
+                clip.encryptedContent = nil
+                clip.secureLabel = nil
+                clip.isSecure = false
+                clip.expiresAt = nil
+            } else {
+                // Mark as secure
+                let originalPlainText = clip.plainText ?? ""
+                do {
+                    let encrypted = try EncryptionService.encrypt(clip.content)
+                    clip.encryptedContent = encrypted
+                    clip.plainText = SensitiveContentDetector.mask(originalPlainText)
+                    clip.secureLabel = "Manual"
+                    clip.content = Data()
+                    clip.previewData = nil
+                    clip.isSecure = true
+                    let ttl = TimeInterval(UserDefaults.standard.integer(forKey: "secureItemTTL").nonZeroOr(86400))
+                    clip.expiresAt = clip.isPinned ? nil : Date.now.addingTimeInterval(ttl)
+                } catch {
+                    return
+                }
+            }
+            try? modelContext.save()
+        }
+    }
+
+    private func toggleSecureForSnippet(_ snippet: SnippetItem) {
+        Task {
+            guard let valueData = snippet.value.data(using: .utf8),
+                  let encrypted = try? EncryptionService.encrypt(valueData) else { return }
+            let secure = SecureSnippetItem(
+                id: snippet.id,
+                name: snippet.name,
+                encryptedValue: encrypted,
+                expiresAt: nil,
+                sortOrder: snippet.sortOrder,
+                createdAt: snippet.createdAt
+            )
+            modelContext.insert(secure)
+            modelContext.delete(snippet)
+            try? modelContext.save()
+        }
+    }
+
+    private func toggleSecureForSecureSnippet(_ secureSnippet: SecureSnippetItem) {
+        Task {
+            guard await AuthenticationService.authenticate(reason: "Remove secure status") else { return }
+            guard let decrypted = try? EncryptionService.decrypt(secureSnippet.encryptedValue),
+                  let value = String(data: decrypted, encoding: .utf8) else { return }
+            let regular = SnippetItem(
+                id: secureSnippet.id,
+                name: secureSnippet.name,
+                value: value,
+                sortOrder: secureSnippet.sortOrder
+            )
+            modelContext.insert(regular)
+            modelContext.delete(secureSnippet)
+            try? modelContext.save()
         }
     }
 

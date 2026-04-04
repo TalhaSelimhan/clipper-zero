@@ -2,6 +2,7 @@ import AppKit
 import SwiftData
 import Foundation
 import UniformTypeIdentifiers
+import os
 
 @MainActor
 final class ClipboardMonitor {
@@ -28,6 +29,8 @@ final class ClipboardMonitor {
     }
 
     private func checkPasteboard() {
+        guard !PasteService.isPasting else { return }
+
         let pasteboard = NSPasteboard.general
         let currentChangeCount = pasteboard.changeCount
 
@@ -51,15 +54,34 @@ final class ClipboardMonitor {
         return !results.isEmpty
     }
 
+    private static let logger = Logger(subsystem: "com.talhaselimhan.Clipper-Zero", category: "ClipboardMonitor")
+
     private func captureClip(from pasteboard: NSPasteboard) {
         let context = modelContainer.mainContext
 
         let (contentType, content, plainText) = extractContent(from: pasteboard)
         guard let content else { return }
 
-        // If a clip with the same text already exists, move it to the top instead of duplicating
-        // Skip dedup for file clips — plainText is not unique enough (e.g., "3 files")
-        if contentType != .file,
+        // Extract file name for sensitivity detection on file clips
+        let fileName: String? = {
+            guard contentType == .file else { return nil }
+            if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [
+                .urlReadingFileURLsOnly: true
+            ]) as? [URL], let first = urls.first {
+                return first.lastPathComponent
+            }
+            return nil
+        }()
+
+        // Detect sensitive content before dedup (sensitive files should be checked early)
+        let autoDetect = UserDefaults.standard.object(forKey: "autoDetectSensitive") as? Bool ?? true
+        let detection = autoDetect
+            ? SensitiveContentDetector.detect(plainText: plainText, contentType: contentType, fileName: fileName)
+            : nil
+
+        // Dedup check — skip entirely for sensitive items to avoid dropping distinct secrets
+        if detection == nil,
+           contentType != .file,
            let plainText,
            let existing = findExistingClip(plainText: plainText, contentType: contentType, in: context) {
             existing.createdAt = .now
@@ -68,15 +90,39 @@ final class ClipboardMonitor {
         }
 
         let frontApp = NSWorkspace.shared.frontmostApplication
-        let clip = ClipItem(
-            content: content,
-            contentType: contentType,
-            plainText: plainText,
-            sourceAppBundle: frontApp?.bundleIdentifier,
-            sourceAppName: frontApp?.localizedName
-        )
+        let clip: ClipItem
 
-        if contentType == .image {
+        if let detection {
+            // Sensitive content detected — encrypt and store securely
+            let ttl = TimeInterval(UserDefaults.standard.integer(forKey: "secureItemTTL").nonZeroOr(86400))
+            do {
+                let encrypted = try EncryptionService.encrypt(content)
+                clip = ClipItem(
+                    content: Data(),
+                    contentType: contentType,
+                    plainText: detection.maskedPreview,
+                    sourceAppBundle: frontApp?.bundleIdentifier,
+                    sourceAppName: frontApp?.localizedName,
+                    isSecure: true,
+                    encryptedContent: encrypted,
+                    expiresAt: Date.now.addingTimeInterval(ttl),
+                    secureLabel: detection.label
+                )
+            } catch {
+                Self.logger.warning("Encryption failed, skipping secure clip capture: \(error.localizedDescription)")
+                return
+            }
+        } else {
+            clip = ClipItem(
+                content: content,
+                contentType: contentType,
+                plainText: plainText,
+                sourceAppBundle: frontApp?.bundleIdentifier,
+                sourceAppName: frontApp?.localizedName
+            )
+        }
+
+        if contentType == .image && !clip.isSecure {
             clip.previewData = generateThumbnail(from: content)
         }
 
@@ -176,9 +222,10 @@ final class ClipboardMonitor {
 
         let excess = totalCount - effectiveLimit
 
-        // Fetch oldest unpinned items not in any collection
+        // Fetch oldest unpinned, non-secure items not in any collection.
+        // Secure items are controlled by TTL, not retention policy.
         let predicate = #Predicate<ClipItem> { item in
-            !item.isPinned && (item.collections?.isEmpty ?? true)
+            !item.isPinned && !item.isSecure && (item.collections?.isEmpty ?? true)
         }
         var descriptor = FetchDescriptor<ClipItem>(
             predicate: predicate,
@@ -191,5 +238,11 @@ final class ClipboardMonitor {
             context.delete(item)
         }
         try? context.save()
+    }
+}
+
+extension Int {
+    func nonZeroOr(_ fallback: Int) -> Int {
+        self != 0 ? self : fallback
     }
 }
