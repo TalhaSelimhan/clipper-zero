@@ -8,6 +8,10 @@ final class PanelController {
     private var appActivationObserver: NSObjectProtocol?
     private let modelContainer: ModelContainer
 
+    private var sharedModelContext: ModelContext {
+        modelContainer.mainContext
+    }
+
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
     }
@@ -94,6 +98,7 @@ final class PanelController {
             onDismiss: { [weak self] in self?.hidePanel() }
         )
         .modelContainer(modelContainer)
+        .modelContext(sharedModelContext)
 
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.frame = NSRect(x: 0, y: 0, width: PanelMetrics.width, height: PanelMetrics.height)
