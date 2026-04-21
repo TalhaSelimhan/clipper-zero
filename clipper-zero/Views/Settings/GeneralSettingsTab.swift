@@ -56,6 +56,9 @@ struct GeneralSettingsTab: View {
         }
         .formStyle(.grouped)
         .padding()
+        .onAppear {
+            normalizeHistoryLimitIfNeeded()
+        }
     }
 
     private func updateLaunchAtLogin(_ enabled: Bool) {
@@ -68,5 +71,10 @@ struct GeneralSettingsTab: View {
         } catch {
             print("Failed to update launch at login: \(error)")
         }
+    }
+
+    private func normalizeHistoryLimitIfNeeded() {
+        guard historyLimit > 0, historyLimit < 100 else { return }
+        historyLimit = 100
     }
 }

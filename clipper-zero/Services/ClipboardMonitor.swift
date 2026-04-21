@@ -213,8 +213,7 @@ final class ClipboardMonitor {
     }
 
     private func enforceRetentionPolicy(in context: ModelContext) {
-        let limit = UserDefaults.standard.integer(forKey: "historyLimit")
-        let effectiveLimit = limit > 0 ? limit : 1000
+        let effectiveLimit = normalizedHistoryLimit()
 
         let countDescriptor = FetchDescriptor<ClipItem>()
         guard let totalCount = try? context.fetchCount(countDescriptor),
@@ -243,6 +242,17 @@ final class ClipboardMonitor {
             context.delete(item)
         }
         try? context.save()
+    }
+
+    private func normalizedHistoryLimit() -> Int {
+        let limit = UserDefaults.standard.integer(forKey: "historyLimit")
+        if limit == 0 { return 1000 }
+        if limit < 100 {
+            UserDefaults.standard.set(100, forKey: "historyLimit")
+            Self.logger.notice("Normalized invalid historyLimit=\(limit) to 100")
+            return 100
+        }
+        return limit
     }
 }
 
