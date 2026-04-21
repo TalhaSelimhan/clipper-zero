@@ -222,18 +222,23 @@ final class ClipboardMonitor {
 
         let excess = totalCount - effectiveLimit
 
-        // Fetch oldest unpinned, non-secure items not in any collection.
-        // Secure items are controlled by TTL, not retention policy.
+        // Keep the SQL predicate limited to scalar fields. Filtering on the
+        // to-many relationship in memory avoids SwiftData/Core Data SQL
+        // generation crashes for `collections?.isEmpty`.
         let predicate = #Predicate<ClipItem> { item in
-            !item.isPinned && !item.isSecure && (item.collections?.isEmpty ?? true)
+            !item.isPinned && !item.isSecure
         }
-        var descriptor = FetchDescriptor<ClipItem>(
+        let descriptor = FetchDescriptor<ClipItem>(
             predicate: predicate,
             sortBy: [SortDescriptor(\.createdAt, order: .forward)]
         )
-        descriptor.fetchLimit = excess
+        
+        guard let candidates = try? context.fetch(descriptor) else { return }
+        let oldItems = candidates
+            .lazy
+            .filter { $0.collections?.isEmpty ?? true }
+            .prefix(excess)
 
-        guard let oldItems = try? context.fetch(descriptor) else { return }
         for item in oldItems {
             context.delete(item)
         }
