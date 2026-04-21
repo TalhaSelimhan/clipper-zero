@@ -1,7 +1,11 @@
 import SwiftUI
 import SwiftData
+import Foundation
+import os
 
 struct MenuBarView: View {
+    private static let logger = Logger(subsystem: "com.talhaselimhan.Clipper-Zero", category: "MenuBarView")
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
@@ -39,6 +43,18 @@ struct MenuBarView: View {
             footer
         }
         .frame(width: 320)
+        .onAppear {
+            logSnapshot(reason: "menu bar appeared")
+        }
+        .onChange(of: recentClips.map(\.id)) { _ in
+            logSnapshot(reason: "recent clips changed")
+        }
+        .onChange(of: pinnedClips.map(\.id)) { _ in
+            logSnapshot(reason: "pinned clips changed")
+        }
+        .onChange(of: collections.map(\.id)) { _ in
+            logSnapshot(reason: "collections changed")
+        }
         .onKeyPress(.escape) {
             dismiss()
             return .handled
@@ -164,6 +180,9 @@ struct MenuBarView: View {
             sectionHeader(title)
             content()
         }
+        .onAppear {
+            Self.logger.debug("Section appeared: \(title, privacy: .public)")
+        }
     }
 
     private func sectionHeader(_ title: String) -> some View {
@@ -183,11 +202,39 @@ struct MenuBarView: View {
         }
         try? modelContext.save()
     }
+
+    private func logSnapshot(reason: String) {
+        let recentSummary = recentClips
+            .map(Self.describeClip)
+            .joined(separator: " | ")
+        let pinnedSummary = pinnedClips
+            .prefix(10)
+            .map(Self.describeClip)
+            .joined(separator: " | ")
+        let collectionSummary = collections
+            .map { "\($0.name)=\($0.items?.count ?? 0)" }
+            .joined(separator: ", ")
+
+        Self.logger.notice(
+            """
+            Snapshot reason=\(reason, privacy: .public) all=\(allClips.count) recent=\(recentClips.count) pinned=\(pinnedClips.count) collections=\(collections.count) recentItems=\(recentSummary, privacy: .public) pinnedItems=\(pinnedSummary, privacy: .public) collectionItems=\(collectionSummary, privacy: .public)
+            """
+        )
+    }
+
+    private static func describeClip(_ clip: ClipItem) -> String {
+        let sourceApp = clip.sourceAppName ?? "-"
+        let plainTextCount = clip.plainText?.count ?? 0
+        let timestamp = ISO8601DateFormatter().string(from: clip.createdAt)
+        return "id=\(String(clip.id.uuidString.prefix(8)));type=\(clip.contentType.rawValue);secure=\(clip.isSecure);chars=\(plainTextCount);app=\(sourceApp);created=\(timestamp)"
+    }
 }
 
 // MARK: - Menu Bar Clip Row
 
 struct MenuBarClipRow: View {
+    private static let logger = Logger(subsystem: "com.talhaselimhan.Clipper-Zero", category: "MenuBarClipRow")
+
     let clip: ClipItem
 
     var body: some View {
@@ -195,6 +242,9 @@ struct MenuBarClipRow: View {
             secureRow
         } else {
             normalRow
+        }
+        .onAppear {
+            Self.logger.debug("\(Self.describeClip(clip), privacy: .public)")
         }
     }
 
@@ -251,5 +301,11 @@ struct MenuBarClipRow: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
+    }
+
+    private static func describeClip(_ clip: ClipItem) -> String {
+        let sourceApp = clip.sourceAppName ?? "-"
+        let plainTextCount = clip.plainText?.count ?? 0
+        return "Row appeared id=\(String(clip.id.uuidString.prefix(8)));type=\(clip.contentType.rawValue);secure=\(clip.isSecure);chars=\(plainTextCount);app=\(sourceApp)"
     }
 }
