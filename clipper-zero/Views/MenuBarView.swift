@@ -238,10 +238,12 @@ struct MenuBarClipRow: View {
     let clip: ClipItem
 
     var body: some View {
-        if clip.isSecure {
-            secureRow
-        } else {
-            normalRow
+        Group {
+            if clip.isSecure {
+                secureRow
+            } else {
+                normalRow
+            }
         }
         .onAppear {
             Self.logger.debug("\(Self.describeClip(clip), privacy: .public)")
