@@ -15,6 +15,10 @@ struct MenuBarView: View {
     @Query(sort: \ClipCollection.createdAt, order: .reverse)
     private var collections: [ClipCollection]
 
+    private var recentClips: [ClipItem] {
+        Array(allClips.prefix(10))
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -26,6 +30,7 @@ struct MenuBarView: View {
                     pinnedSection
                     collectionsSection
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 4)
             }
             .frame(maxHeight: 400)
@@ -64,8 +69,7 @@ struct MenuBarView: View {
     // MARK: - Recent Section
 
     private var recentSection: some View {
-        Section {
-            let recentClips = Array(allClips.prefix(10))
+        sectionContent(title: "Recent") {
             if recentClips.isEmpty {
                 Text("No clips yet")
                     .font(.caption)
@@ -76,8 +80,6 @@ struct MenuBarView: View {
                     MenuBarClipRow(clip: clip)
                 }
             }
-        } header: {
-            sectionHeader("Recent")
         }
     }
 
@@ -86,12 +88,10 @@ struct MenuBarView: View {
     @ViewBuilder
     private var pinnedSection: some View {
         if !pinnedClips.isEmpty {
-            Section {
+            sectionContent(title: "Pinned") {
                 ForEach(pinnedClips) { clip in
                     MenuBarClipRow(clip: clip)
                 }
-            } header: {
-                sectionHeader("Pinned")
             }
         }
     }
@@ -101,7 +101,7 @@ struct MenuBarView: View {
     @ViewBuilder
     private var collectionsSection: some View {
         if !collections.isEmpty {
-            Section {
+            sectionContent(title: "Collections") {
                 ForEach(collections) { collection in
                     DisclosureGroup {
                         if let items = collection.items, !items.isEmpty {
@@ -120,8 +120,6 @@ struct MenuBarView: View {
                     }
                     .padding(.horizontal, 12)
                 }
-            } header: {
-                sectionHeader("Collections")
             }
         }
     }
@@ -157,6 +155,16 @@ struct MenuBarView: View {
     }
 
     // MARK: - Helpers
+
+    private func sectionContent<Content: View>(
+        title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            sectionHeader(title)
+            content()
+        }
+    }
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
@@ -245,4 +253,3 @@ struct MenuBarClipRow: View {
         }
     }
 }
-
