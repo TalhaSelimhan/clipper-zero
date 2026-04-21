@@ -34,6 +34,7 @@ struct MenuBarView: View {
                     pinnedSection
                     collectionsSection
                 }
+                .debugLayout("contentStack", logger: Self.logger)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 4)
             }
@@ -180,6 +181,7 @@ struct MenuBarView: View {
             sectionHeader(title)
             content()
         }
+        .debugLayout("section-\(title)", logger: Self.logger)
         .onAppear {
             Self.logger.debug("Section appeared: \(title, privacy: .public)")
         }
@@ -245,6 +247,7 @@ struct MenuBarClipRow: View {
                 normalRow
             }
         }
+        .debugLayout("row-\(String(clip.id.uuidString.prefix(8)))", logger: Self.logger)
         .onAppear {
             Self.logger.debug("\(Self.describeClip(clip), privacy: .public)")
         }
@@ -309,5 +312,39 @@ struct MenuBarClipRow: View {
         let sourceApp = clip.sourceAppName ?? "-"
         let plainTextCount = clip.plainText?.count ?? 0
         return "Row appeared id=\(String(clip.id.uuidString.prefix(8)));type=\(clip.contentType.rawValue);secure=\(clip.isSecure);chars=\(plainTextCount);app=\(sourceApp)"
+    }
+}
+
+private struct DebugLayoutModifier: ViewModifier {
+    let name: String
+    let logger: Logger
+
+    func body(content: Content) -> some View {
+        content.background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear {
+                        logLayout(proxy: proxy, reason: "appear")
+                    }
+                    .onChange(of: proxy.size) { _ in
+                        logLayout(proxy: proxy, reason: "sizeChanged")
+                    }
+            }
+        )
+    }
+
+    private func logLayout(proxy: GeometryProxy, reason: String) {
+        let frame = proxy.frame(in: .global)
+        logger.debug(
+            """
+            Layout \(name, privacy: .public) reason=\(reason, privacy: .public) size=\(Int(proxy.size.width))x\(Int(proxy.size.height)) origin=\(Int(frame.minX)),\(Int(frame.minY))
+            """
+        )
+    }
+}
+
+private extension View {
+    func debugLayout(_ name: String, logger: Logger) -> some View {
+        modifier(DebugLayoutModifier(name: name, logger: logger))
     }
 }
