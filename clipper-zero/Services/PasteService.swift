@@ -5,64 +5,73 @@ import Foundation
 final class PasteService {
     static let shared = PasteService()
     static var isPasting = false
+    private static var ignoredPasteboardChangeCount: Int?
 
     private init() {}
 
     // MARK: - Public API
 
-    func paste(clip: ClipItem) async {
+    func paste(clip: ClipItem) async -> Bool {
         if clip.isSecure {
-            guard await AuthenticationService.authenticate(reason: "Paste secure content") else { return }
+            guard await AuthenticationService.authenticate(reason: "Paste secure content") else { return false }
             guard let encrypted = clip.encryptedContent,
-                  let decrypted = try? EncryptionService.decrypt(encrypted) else { return }
+                  let decrypted = try? EncryptionService.decrypt(encrypted) else { return false }
             setPasteGuard()
             writeDecrypted(data: decrypted, contentType: clip.contentType, plainText: clip.plainText)
             hideAndPaste()
+            return true
         } else {
             writeToPasteboard(clip: clip)
             hideAndPaste()
+            return true
         }
     }
 
-    func copyOnly(clip: ClipItem) async {
+    func copyOnly(clip: ClipItem) async -> Bool {
         if clip.isSecure {
-            guard await AuthenticationService.authenticate(reason: "Copy secure content") else { return }
+            guard await AuthenticationService.authenticate(reason: "Copy secure content") else { return false }
             guard let encrypted = clip.encryptedContent,
-                  let decrypted = try? EncryptionService.decrypt(encrypted) else { return }
+                  let decrypted = try? EncryptionService.decrypt(encrypted) else { return false }
             setPasteGuard()
             writeDecrypted(data: decrypted, contentType: clip.contentType, plainText: clip.plainText)
+            return true
         } else {
             writeToPasteboard(clip: clip)
+            return true
         }
     }
 
-    func paste(snippet: SnippetItem) {
+    func paste(snippet: SnippetItem) -> Bool {
         writeToPasteboard(text: snippet.value)
         hideAndPaste()
+        return true
     }
 
-    func copyOnly(snippet: SnippetItem) {
+    func copyOnly(snippet: SnippetItem) -> Bool {
         writeToPasteboard(text: snippet.value)
+        return true
     }
 
-    func paste(secureSnippet: SecureSnippetItem) async {
-        guard await AuthenticationService.authenticate(reason: "Paste secure snippet") else { return }
+    func paste(secureSnippet: SecureSnippetItem) async -> Bool {
+        guard await AuthenticationService.authenticate(reason: "Paste secure snippet") else { return false }
         guard let decrypted = try? EncryptionService.decrypt(secureSnippet.encryptedValue),
-              let text = String(data: decrypted, encoding: .utf8) else { return }
+              let text = String(data: decrypted, encoding: .utf8) else { return false }
         setPasteGuard()
         writeToPasteboard(text: text)
         hideAndPaste()
+        return true
     }
 
-    func copyOnly(secureSnippet: SecureSnippetItem) async {
-        guard await AuthenticationService.authenticate(reason: "Copy secure snippet") else { return }
+    func copyOnly(secureSnippet: SecureSnippetItem) async -> Bool {
+        guard await AuthenticationService.authenticate(reason: "Copy secure snippet") else { return false }
         guard let decrypted = try? EncryptionService.decrypt(secureSnippet.encryptedValue),
-              let text = String(data: decrypted, encoding: .utf8) else { return }
+              let text = String(data: decrypted, encoding: .utf8) else { return false }
         setPasteGuard()
         writeToPasteboard(text: text)
+        return true
     }
 
-    func paste(_ result: SearchResult) async {
+    func paste(_ result: SearchResult) async -> Bool {
         switch result {
         case .clip(let clip): await paste(clip: clip)
         case .snippet(let snippet): paste(snippet: snippet)
@@ -70,12 +79,18 @@ final class PasteService {
         }
     }
 
-    func copyOnly(_ result: SearchResult) async {
+    func copyOnly(_ result: SearchResult) async -> Bool {
         switch result {
         case .clip(let clip): await copyOnly(clip: clip)
         case .snippet(let snippet): copyOnly(snippet: snippet)
         case .secureSnippet(let snippet): await copyOnly(secureSnippet: snippet)
         }
+    }
+
+    static func shouldIgnorePasteboardChange(_ changeCount: Int) -> Bool {
+        guard ignoredPasteboardChangeCount == changeCount else { return false }
+        ignoredPasteboardChangeCount = nil
+        return true
     }
 
     // MARK: - Paste Guard
@@ -100,6 +115,7 @@ final class PasteService {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        registerPasteboardWrite(pasteboard)
     }
 
     private func writeToPasteboard(clip: ClipItem) {
@@ -152,6 +168,8 @@ final class PasteService {
                 }
             }
         }
+
+        registerPasteboardWrite(pasteboard)
     }
 
     private func writeDecrypted(data: Data, contentType: ClipContentType, plainText: String?) {
@@ -201,6 +219,8 @@ final class PasteService {
                 }
             }
         }
+
+        registerPasteboardWrite(pasteboard)
     }
 
     private func simulateCmdV() {
@@ -214,5 +234,9 @@ final class PasteService {
 
         keyDown?.post(tap: .cghidEventTap)
         keyUp?.post(tap: .cghidEventTap)
+    }
+
+    private func registerPasteboardWrite(_ pasteboard: NSPasteboard) {
+        PasteService.ignoredPasteboardChangeCount = pasteboard.changeCount
     }
 }

@@ -234,6 +234,7 @@ struct MenuBarView: View {
 struct MenuBarClipRow: View {
     private static let logger = Logger(subsystem: "com.talhaselimhan.Clipper-Zero", category: "MenuBarClipRow")
 
+    @Environment(\.modelContext) private var modelContext
     let clip: ClipItem
 
     var body: some View {
@@ -252,7 +253,10 @@ struct MenuBarClipRow: View {
 
     private var normalRow: some View {
         Button {
-            Task { await PasteService.shared.copyOnly(clip: clip) }
+            Task { @MainActor in
+                guard await PasteService.shared.copyOnly(clip: clip) else { return }
+                SelectionTrackingService.markUsed(clip, in: modelContext)
+            }
         } label: {
             rowContent
         }

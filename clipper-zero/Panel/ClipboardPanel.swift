@@ -579,12 +579,18 @@ struct ClipboardPanel: View {
 
     private func pasteSelected() {
         guard let item = selectedItem else { return }
-        Task { await PasteService.shared.paste(item) }
+        Task { @MainActor in
+            guard await PasteService.shared.paste(item) else { return }
+            SelectionTrackingService.markUsed(item, in: modelContext)
+        }
     }
 
     private func copySelected() {
         guard let item = selectedItem else { return }
-        Task { await PasteService.shared.copyOnly(item) }
+        Task { @MainActor in
+            guard await PasteService.shared.copyOnly(item) else { return }
+            SelectionTrackingService.markUsed(item, in: modelContext)
+        }
     }
 
     private func togglePin() {

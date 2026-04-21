@@ -29,12 +29,21 @@ final class ClipboardMonitor {
     }
 
     private func checkPasteboard() {
-        guard !PasteService.isPasting else { return }
-
         let pasteboard = NSPasteboard.general
         let currentChangeCount = pasteboard.changeCount
 
         guard currentChangeCount != lastChangeCount else { return }
+
+        if PasteService.shouldIgnorePasteboardChange(currentChangeCount) {
+            lastChangeCount = currentChangeCount
+            return
+        }
+
+        if PasteService.isPasting {
+            lastChangeCount = currentChangeCount
+            return
+        }
+
         lastChangeCount = currentChangeCount
 
         // Check if the frontmost app is excluded
