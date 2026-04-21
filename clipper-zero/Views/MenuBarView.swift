@@ -28,17 +28,14 @@ struct MenuBarView: View {
             header
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    recentSection
-                    pinnedSection
-                    collectionsSection
-                }
-                .debugLayout("contentStack", logger: Self.logger)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 4)
+            VStack(alignment: .leading, spacing: 4) {
+                recentSection
+                pinnedSection
+                collectionsSection
             }
-            .frame(maxHeight: 400)
+            .debugLayout("contentStack", logger: Self.logger)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
 
             Divider()
             footer
