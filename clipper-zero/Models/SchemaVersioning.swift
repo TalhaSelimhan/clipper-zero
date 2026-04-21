@@ -9,11 +9,11 @@ enum SchemaV1: VersionedSchema {
     static var versionIdentifier = Schema.Version(1, 0, 0)
 
     static var models: [any PersistentModel.Type] {
-        [V1ClipItem.self, V1ClipCollection.self, V1ExcludedApp.self]
+        [ClipItem.self, ClipCollection.self, ExcludedApp.self, SnippetItem.self]
     }
 
     @Model
-    final class V1ClipItem {
+    final class ClipItem {
         var id: UUID
         @Attribute(.externalStorage) var content: Data
         var contentType: ClipContentType
@@ -23,7 +23,7 @@ enum SchemaV1: VersionedSchema {
         var createdAt: Date
         var isPinned: Bool
         @Attribute(.externalStorage) var previewData: Data?
-        var collections: [V1ClipCollection]?
+        var collections: [ClipCollection]?
 
         init(content: Data, contentType: ClipContentType, plainText: String? = nil,
              sourceAppBundle: String? = nil, sourceAppName: String? = nil,
@@ -41,13 +41,13 @@ enum SchemaV1: VersionedSchema {
     }
 
     @Model
-    final class V1ClipCollection {
+    final class ClipCollection {
         var id: UUID
         var name: String
         var icon: String
         var createdAt: Date
-        @Relationship(deleteRule: .nullify, inverse: \V1ClipItem.collections)
-        var items: [V1ClipItem]?
+        @Relationship(deleteRule: .nullify, inverse: \ClipItem.collections)
+        var items: [ClipItem]?
 
         init(name: String, icon: String = "folder") {
             self.id = UUID()
@@ -59,7 +59,7 @@ enum SchemaV1: VersionedSchema {
     }
 
     @Model
-    final class V1ExcludedApp {
+    final class ExcludedApp {
         var id: UUID
         @Attribute(.unique) var bundleIdentifier: String
         var appName: String
@@ -70,6 +70,23 @@ enum SchemaV1: VersionedSchema {
             self.appName = appName
         }
     }
+
+    @Model
+    final class SnippetItem {
+        var id: UUID = UUID()
+        var name: String = ""
+        var value: String = ""
+        var createdAt: Date = Date()
+        var sortOrder: Int = 0
+
+        init(name: String, value: String, sortOrder: Int = 0) {
+            self.id = UUID()
+            self.name = name
+            self.value = value
+            self.createdAt = Date()
+            self.sortOrder = sortOrder
+        }
+    }
 }
 
 // MARK: - Schema V2 (Live Types)
@@ -78,8 +95,10 @@ enum SchemaV2: VersionedSchema {
     static var versionIdentifier = Schema.Version(2, 0, 0)
 
     static var models: [any PersistentModel.Type] {
-        // SnippetItem excluded — its schema is managed by CloudKit.
-        [ClipItem.self, ClipCollection.self, ExcludedApp.self, SecureSnippetItem.self]
+        // SnippetItem stays in the versioned schema so both persistent stores keep
+        // a recognizable coordinator model during staged migration. The active
+        // ModelConfiguration split still controls which store owns snippet data.
+        [ClipItem.self, ClipCollection.self, ExcludedApp.self, SnippetItem.self, SecureSnippetItem.self]
     }
 }
 
