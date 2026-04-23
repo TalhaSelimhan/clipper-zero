@@ -106,7 +106,9 @@ final class PasteService {
 
     private func hideAndPaste() {
         AppDelegate.shared.panelController.hidePanel()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        // Tiny delay to let WindowServer transfer key status to the previous app
+        // before we post the synthetic ⌘V event.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
             self.simulateCmdV()
         }
     }

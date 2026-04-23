@@ -83,14 +83,8 @@ final class PanelController {
 
         guard let panel, panel.isVisible else { return }
 
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.1
-            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            panel.animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
-            self?.panel?.orderOut(nil)
-            self?.panel = nil
-        })
+        panel.orderOut(nil)
+        self.panel = nil
     }
 
     private func createPanel() {
