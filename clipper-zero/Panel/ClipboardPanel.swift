@@ -193,15 +193,14 @@ struct ClipboardPanel: View {
 
     /// Merged snippet results sorted by sortOrder, deduped by id as safety net
     private var mergedSnippetResults: [SearchResult] {
-        var seen = Set<String>()
-        let regular: [(Int, SearchResult)] = filteredSnippets.map { ($0.sortOrder, .snippet($0)) }
-        let secure: [(Int, SearchResult)] = filteredSecureSnippets.map { ($0.sortOrder, .secureSnippet($0)) }
+        var seen = Set<UUID>()
+        let regular: [(Int, UUID, SearchResult)] = filteredSnippets.map { ($0.sortOrder, $0.id, .snippet($0)) }
+        let secure: [(Int, UUID, SearchResult)] = filteredSecureSnippets.map { ($0.sortOrder, $0.id, .secureSnippet($0)) }
         return (regular + secure)
             .sorted { $0.0 < $1.0 }
             .compactMap { pair in
-                let result = pair.1
-                guard seen.insert(result.id).inserted else { return nil }
-                return result
+                guard seen.insert(pair.1).inserted else { return nil }
+                return pair.2
             }
     }
 
