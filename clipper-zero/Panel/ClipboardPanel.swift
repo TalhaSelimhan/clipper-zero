@@ -16,8 +16,8 @@ struct ClipboardPanel: View {
         case snippets = "Snippets"
     }
 
-    private struct ScrollList<Content: View>: View {
-        let selectedIndex: Int
+    private struct ScrollList<ID: Hashable, Content: View>: View {
+        let selectedID: ID?
         @ViewBuilder let content: () -> Content
 
         var body: some View {
@@ -29,7 +29,8 @@ struct ClipboardPanel: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                 }
-                .onChange(of: selectedIndex) { _, newValue in
+                .onChange(of: selectedID) { _, newValue in
+                    guard let newValue else { return }
                     withAnimation(.easeOut(duration: 0.1)) {
                         proxy.scrollTo(newValue, anchor: .center)
                     }
@@ -352,7 +353,7 @@ struct ClipboardPanel: View {
     // MARK: - Clip List
 
     private func clipList(_ clips: [ClipItem]) -> some View {
-        ScrollList(selectedIndex: selectedIndex) {
+        ScrollList(selectedID: clips.indices.contains(selectedIndex) ? clips[selectedIndex].id : nil) {
             ForEach(Array(clips.enumerated()), id: \.element.id) { index, clip in
                 Button {
                     selectedIndex = index
@@ -363,7 +364,6 @@ struct ClipboardPanel: View {
                         isExpanded: index == selectedIndex && expandedPreview
                     )
                 }
-                .id(index)
                 .buttonStyle(.plain)
                 .contextMenu {
                     if clip.isSecure {
@@ -404,7 +404,7 @@ struct ClipboardPanel: View {
 
     private var mergedSnippetList: some View {
         let results = mergedSnippetResults
-        return ScrollList(selectedIndex: selectedIndex) {
+        return ScrollList(selectedID: results.indices.contains(selectedIndex) ? results[selectedIndex].id : nil) {
             if isAddingSnippet {
                 InlineAddForm(snippetName: $newSnippetName, snippetValue: $newSnippetValue, isNameFocused: $isSnippetNameFocused)
             }
@@ -424,7 +424,6 @@ struct ClipboardPanel: View {
                         }
                     }
                 }
-                .id(index)
                 .buttonStyle(.plain)
                 .contextMenu {
                     switch result {
@@ -460,7 +459,7 @@ struct ClipboardPanel: View {
 
     private var unifiedSearchList: some View {
         let results = searchResults
-        return ScrollList(selectedIndex: selectedIndex) {
+        return ScrollList(selectedID: results.indices.contains(selectedIndex) ? results[selectedIndex].id : nil) {
             ForEach(Array(results.enumerated()), id: \.element.id) { index, result in
                 Button {
                     selectedIndex = index
@@ -486,7 +485,6 @@ struct ClipboardPanel: View {
                         }
                     }
                 }
-                .id(index)
                 .buttonStyle(.plain)
                 .contextMenu {
                     switch result {
