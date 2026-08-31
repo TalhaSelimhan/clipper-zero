@@ -16,10 +16,21 @@ enum SnippetMigrationService {
     static func extractOldSnippetsIfNeeded() -> [MigratedSnippet]? {
         guard !UserDefaults.standard.bool(forKey: migrationKey) else { return nil }
 
+        // On a fresh install there is no legacy store to read. Opening a container
+        // here would *create* ClipperZero.store stamped with a SnippetItem-only
+        // model, which matches no version in ClipperZeroMigrationPlan — the real
+        // container then fails with "Cannot use staged migration with an unknown
+        // model version" and the app traps on every launch. Only read a store
+        // that already exists.
+        guard StoreLocation.exists(StoreLocation.local) else {
+            UserDefaults.standard.set(true, forKey: migrationKey)
+            return nil
+        }
+
         do {
             let oldSchema = Schema([SnippetItem.self])
             let oldConfig = ModelConfiguration(
-                "ClipperZero",
+                StoreLocation.localName,
                 schema: oldSchema,
                 cloudKitDatabase: .none
             )
