@@ -16,13 +16,24 @@ enum SnippetMigrationService {
     static func extractOldSnippetsIfNeeded() -> [MigratedSnippet]? {
         guard !UserDefaults.standard.bool(forKey: migrationKey) else { return nil }
 
+        let oldSchema = Schema([SnippetItem.self])
+        let oldConfig = ModelConfiguration(
+            "ClipperZero",
+            schema: oldSchema,
+            cloudKitDatabase: .none
+        )
+
+        // On a fresh install there is no legacy store to read. Opening a container
+        // here would CREATE "ClipperZero.store" with a snippet-only model, and the
+        // main container — which owns that same file with the full local schema —
+        // would then fail to open it and trap in ModelContainerFactory. Nothing to
+        // migrate, so record completion and leave the file for the main container.
+        guard FileManager.default.fileExists(atPath: oldConfig.url.path(percentEncoded: false)) else {
+            UserDefaults.standard.set(true, forKey: migrationKey)
+            return nil
+        }
+
         do {
-            let oldSchema = Schema([SnippetItem.self])
-            let oldConfig = ModelConfiguration(
-                "ClipperZero",
-                schema: oldSchema,
-                cloudKitDatabase: .none
-            )
             let oldContainer = try ModelContainer(for: oldSchema, configurations: [oldConfig])
             let oldContext = ModelContext(oldContainer)
             let oldSnippets = try oldContext.fetch(FetchDescriptor<SnippetItem>())

@@ -6,21 +6,21 @@ enum ModelContainerFactory {
         // to avoid two ModelContainers competing on the same SQLite file.
         let oldSnippets = SnippetMigrationService.extractOldSnippetsIfNeeded()
 
+        let schema = Schema([ClipItem.self, ClipCollection.self, ExcludedApp.self, SnippetItem.self, SecureSnippetItem.self])
+
+        let localConfig = ModelConfiguration(
+            "ClipperZero",
+            schema: Schema([ClipItem.self, ClipCollection.self, ExcludedApp.self, SecureSnippetItem.self]),
+            cloudKitDatabase: .none
+        )
+
+        let cloudConfig = ModelConfiguration(
+            "ClipperZeroSnippets",
+            schema: Schema([SnippetItem.self]),
+            cloudKitDatabase: .automatic
+        )
+
         do {
-            let schema = Schema([ClipItem.self, ClipCollection.self, ExcludedApp.self, SnippetItem.self, SecureSnippetItem.self])
-
-            let localConfig = ModelConfiguration(
-                "ClipperZero",
-                schema: Schema([ClipItem.self, ClipCollection.self, ExcludedApp.self, SecureSnippetItem.self]),
-                cloudKitDatabase: .none
-            )
-
-            let cloudConfig = ModelConfiguration(
-                "ClipperZeroSnippets",
-                schema: Schema([SnippetItem.self]),
-                cloudKitDatabase: .automatic
-            )
-
             let container = try ModelContainer(
                 for: schema,
                 migrationPlan: ClipperZeroMigrationPlan.self,
@@ -31,7 +31,7 @@ enum ModelContainerFactory {
             SnippetMigrationService.completeMigration(oldSnippets, into: container)
             return container
         } catch {
-            fatalError("Failed to create ModelContainer: \(error)")
+            fatalError("Failed to create ModelContainer at \(localConfig.url): \(error)")
         }
     }
 }
